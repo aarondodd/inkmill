@@ -1,0 +1,50 @@
+[build-system]
+requires = ["hatchling>=1.21"]
+build-backend = "hatchling.build"
+
+[project]
+name = "inkmill"
+version = "0.1.0"
+description = "A distraction-free terminal word processor for Markdown, with WordPerfect-style file management."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11"
+authors = [{ name = "Aaron Dodd", email = "aaron@aarondodd.com" }]
+keywords = ["word processor", "markdown", "tui", "textual", "writing"]
+classifiers = [
+    "Environment :: Console",
+    "Intended Audience :: End Users/Desktop",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Topic :: Text Editors :: Word Processors",
+]
+# Every runtime dependency is pure Python so Inkmill installs cleanly on
+# Windows, Linux, macOS and Termux (Android) without a compiler.
+dependencies = [
+    "textual>=8.0",
+    "markdown-it-py>=4.1",
+    "mdit-py-plugins>=0.5",
+    "linkify-it-py>=2.0",
+    "platformdirs>=4.0",
+    "tomli-w>=1.0",
+]
+
+[project.optional-dependencies]
+# Markdown syntax highlighting in the editor needs tree-sitter wheels,
+# which are not available on every platform (notably Termux).
+syntax = ["textual[syntax]>=8.0"]
+dev = ["pytest>=8", "pytest-asyncio>=0.23"]
+
+[project.scripts]
+inkmill = "inkmill.__main__:main"
+
+[project.urls]
+Homepage = "https://github.com/aarondodd/inkmill"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/inkmill"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"

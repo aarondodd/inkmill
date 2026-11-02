@@ -1,0 +1,19 @@
+/* WordPerfect: the blue screen, kept for the output too. */
+/* inkmill: pygments=native */
+:root {
+  --im-bg: #0000aa;
+  --im-fg: #ffffff;
+  --im-muted: #aaaaaa;
+  --im-accent: #55ffff;
+  --im-border: #5555ff;
+  --im-code-bg: #000080;
+  --im-font-body: "Px437 IBM VGA 8x16", "Perfect DOS VGA 437", "Lucida Console", "Courier New", monospace;
+  --im-font-mono: var(--im-font-body);
+  --im-size: 1.05rem;
+  --im-line-height: 1.5;
+  --im-measure: 80ch;
+}
+h1, h2, h3 { color: #ffff55; font-weight: bold; }
+strong { color: #ffff55; }
+em { color: #55ffff; font-style: normal; text-decoration: underline; }
+thead th { background: #aaaaaa; color: #000000; }

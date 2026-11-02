@@ -1,0 +1,11 @@
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def isolated_dirs(tmp_path, monkeypatch):
+    """Keep every test away from the real settings, state and plugins."""
+    cfg = tmp_path / "config"
+    state = tmp_path / "state"
+    monkeypatch.setenv("INKMILL_CONFIG_DIR", str(cfg))
+    monkeypatch.setenv("INKMILL_STATE_DIR", str(state))
+    return cfg, state

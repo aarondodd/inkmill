@@ -1,0 +1,80 @@
+/* Inkmill base layout. Every style sheet is appended after this one and is
+   expected to set the custom properties below. */
+:root {
+  --im-bg: #ffffff;
+  --im-fg: #1f2328;
+  --im-muted: #59636e;
+  --im-accent: #0b57d0;
+  --im-border: #d1d9e0;
+  --im-code-bg: #f6f8fa;
+  --im-font-body: Georgia, "Times New Roman", serif;
+  --im-font-heading: var(--im-font-body);
+  --im-font-mono: ui-monospace, "Cascadia Mono", Consolas, "DejaVu Sans Mono", monospace;
+  --im-size: 1.1rem;
+  --im-line-height: 1.6;
+  --im-measure: 42rem;
+}
+* { box-sizing: border-box; }
+html { background: var(--im-bg); color: var(--im-fg); }
+body {
+  margin: 0;
+  padding: 2.5rem 1.25rem 4rem;
+  font-family: var(--im-font-body);
+  font-size: var(--im-size);
+  line-height: var(--im-line-height);
+  -webkit-text-size-adjust: 100%;
+}
+.inkmill-document { max-width: var(--im-measure); margin: 0 auto; overflow-wrap: break-word; }
+h1, h2, h3, h4, h5, h6 { font-family: var(--im-font-heading); line-height: 1.25; margin: 2em 0 0.6em; }
+h1 { font-size: 2.1em; margin-top: 0.4em; }
+h2 { font-size: 1.55em; }
+h3 { font-size: 1.25em; }
+h4, h5, h6 { font-size: 1em; }
+p, ul, ol, dl, table, pre, blockquote, figure { margin: 0 0 1.1em; }
+a { color: var(--im-accent); }
+img, video { max-width: 100%; height: auto; }
+hr { border: 0; border-top: 1px solid var(--im-border); margin: 2.5em auto; width: 40%; }
+blockquote { margin-left: 0; padding: 0 1em; border-left: 3px solid var(--im-border); color: var(--im-muted); }
+code, kbd, samp, pre { font-family: var(--im-font-mono); font-size: 0.88em; }
+:not(pre) > code { background: var(--im-code-bg); padding: 0.1em 0.35em; border-radius: 3px; }
+pre, .highlight pre { background: var(--im-code-bg); padding: 0.9em 1em; overflow-x: auto; border-radius: 4px; line-height: 1.45; }
+.highlight { background: transparent !important; }
+
+/* Tables */
+table { border-collapse: collapse; width: 100%; display: block; overflow-x: auto; }
+th, td { border: 1px solid var(--im-border); padding: 0.4em 0.75em; text-align: left; vertical-align: top; }
+thead th { background: var(--im-code-bg); }
+tbody tr:nth-child(even) { background: color-mix(in srgb, var(--im-code-bg) 55%, transparent); }
+
+/* Task lists */
+.contains-task-list { list-style: none; padding-left: 1.2em; }
+.task-list-item-checkbox { margin: 0 0.5em 0 -1.2em; vertical-align: middle; }
+
+/* Definition lists */
+dt { font-weight: bold; margin-top: 0.6em; }
+dd { margin-left: 1.5em; }
+
+/* Footnotes */
+.footnote-ref { font-size: 0.75em; vertical-align: super; line-height: 0; }
+.footnote-ref a, .footnote-backref { text-decoration: none; }
+hr.footnotes-sep { width: 30%; margin-left: 0; margin-top: 3em; }
+section.footnotes { font-size: 0.9em; color: var(--im-muted); }
+section.footnotes ol { padding-left: 1.4em; }
+
+/* GitHub alerts: > [!NOTE], [!TIP], [!IMPORTANT], [!WARNING], [!CAUTION] */
+.markdown-alert { border-left: 4px solid var(--im-accent); padding: 0.5em 1em; margin: 0 0 1.1em; color: inherit; }
+.markdown-alert-title { font-weight: bold; margin-bottom: 0.25em; }
+.markdown-alert > :last-child, blockquote > :last-child, li > :last-child { margin-bottom: 0; }
+.markdown-alert-tip { border-color: #1a7f37; }
+.markdown-alert-important { border-color: #8250df; }
+.markdown-alert-warning { border-color: #9a6700; }
+.markdown-alert-caution { border-color: #cf222e; }
+
+@media print {
+  html { background: #fff; color: #000; }
+  body { padding: 0; }
+  .inkmill-document { max-width: none; }
+  a { color: inherit; }
+  pre, table, blockquote, figure { page-break-inside: avoid; }
+  h1, h2, h3 { page-break-after: avoid; }
+}

@@ -1,0 +1,21 @@
+/* Manuscript: standard submission format. Courier, double spaced,
+   one-inch margins when printed. */
+/* inkmill: pygments=bw */
+:root {
+  --im-bg: #ffffff;
+  --im-fg: #000000;
+  --im-muted: #000000;
+  --im-accent: #000000;
+  --im-border: #000000;
+  --im-code-bg: #ffffff;
+  --im-font-body: "Courier Prime", "Courier New", Courier, monospace;
+  --im-font-mono: var(--im-font-body);
+  --im-size: 12pt;
+  --im-line-height: 2;
+  --im-measure: 6.5in;
+}
+h1, h2, h3, h4 { font-size: 1em; font-weight: normal; text-align: center; text-transform: uppercase; }
+p { margin: 0; text-indent: 0.5in; }
+hr { border: 0; width: auto; text-align: center; }
+hr::after { content: "#"; }
+@page { size: letter; margin: 1in; }
