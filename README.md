@@ -166,7 +166,7 @@ View > Settings File opens `settings.toml` inside Inkmill. Saving it applies
 the changes. Key overrides apply after a restart.
 
 ```toml
-theme = "wordperfect"     # also grinder, paper, amber, phosphor, or any Textual theme
+theme = "wordperfect"     # also grinder, paper, amber, phosphor, any Textual theme, or a Themes plugin theme
 menu_bar = "auto"         # "always" pins the bar
 page_width = 80           # writing column in characters, 0 for full width
 lines_per_page = 54       # sets the Pg and Ln numbers in the status line
@@ -227,9 +227,12 @@ you trust.
 |--------|--------------|
 | [Binder](plugins/binder/README.md) | Chapters of a long work as separate documents: a binder (parent) holds the order, chapters link to it, and any document can list related ones. Alt+F5 shows them; Alt+PgUp/PgDn move between chapters; the whole binder exports as one manuscript. |
 | [Git Sync](plugins/git_sync/README.md) | Commit the current document with a message (Ctrl+F12), pull and push the repository it lives in. Works with whatever repository holds each document; needs `git`. |
+| [Themes](plugins/themes/README.md) | Ten more screen themes (DOS-era editors and file managers, minimal writing apps, sepia, e-ink, high contrast), a gallery that previews each one on your document as you move through it, and your own themes as small TOML files that apply on save. |
 | [Word Goal](plugins/word_goal/README.md) | A word target for this session with a progress bar. |
 
 ![The Binder list](docs/screenshots/binder.png)
+
+![The Theme Gallery](docs/screenshots/themes.png)
 
 ### Writing plugins
 

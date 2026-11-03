@@ -72,6 +72,15 @@ two plugins, Git Sync and a chapter/related-documents plugin (named Binder).
   explicit `previous`/`next` override; `related` list; `up`/`prev` read as
   aliases. Paths relative with forward slashes. Footnote labels are prefixed
   per chapter in the manuscript export.
+- Themes plugin (added to the same PR at Aaron's request): theme files are
+  TOML (`name`, `dark`, `background`, `foreground`, `primary`, optional
+  `accent`, `[ui]` overrides); bundled ones in `plugins/themes/themes/`, user
+  ones in `<config>/themes/`, saving one applies it. Core `derive_variables`
+  computes im-* per theme in `get_theme_variable_defaults`. Theme names and
+  descriptions say "inspired by" a kind of program and avoid product names.
+- Found while building the gallery: app CSS `Screen { background }` made every
+  modal opaque (dialogs drew over a blank page since 0.1). Removed; Screen's
+  own default background still applies to the base screen.
 - Aaron chose Alt+F5 navigator and Ctrl+F12 commit by accepting the design
   defaults; not yet tried in his terminals (Alt+PgUp/PgDn/Up may not pass
   through everywhere).

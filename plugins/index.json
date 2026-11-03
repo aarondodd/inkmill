@@ -40,6 +40,33 @@
       }
     },
     {
+      "id": "themes",
+      "name": "Themes",
+      "version": "1.0.0",
+      "requires_inkmill": ">=0.2",
+      "summary": "Ten more screen themes, a gallery with live preview, and your own themes as simple TOML files.",
+      "author": "Aaron Dodd",
+      "license": "MIT",
+      "path": "themes",
+      "files": {
+        "README.md": "fbaf7b3f677dc90a908474a0e3b970d02d86294e3716b35e4f0cc96fcdd08bfa",
+        "__init__.py": "438e23b004c9e28bad6137d142bf3217f4b6cbe00b35474017390feae53b3b9b",
+        "gallery.py": "77567462c841b8897a112b6e4d04ee26d932814640c5a69163d2e8df9235c53a",
+        "loader.py": "145c0a8e828b53b82a8351689f333f47e27c31552c8ebd5f9ee642aa3db0ee48",
+        "plugin.toml": "d0aa7012949e650affbb50f5a31aca8e9d9960c3d680ae9fca30974ba464a6c4",
+        "themes/commander.toml": "dbf57691b8c0169d815dd66e0f467e694206c758e45f7155550fe931a5e087c8",
+        "themes/dos-mono.toml": "346ae0cc579e59c1c09c5d2b84101e98e4b3d64a0e5d9414f638b59189e6716f",
+        "themes/e-ink.toml": "0e0e296e3b2c3a007187a973ccb66d733deb0d89e84683346bff54dd160a589d",
+        "themes/eight-bit.toml": "585dd650f9098876180f5b3343a44e024dbe5ab99aa567781789483bc97ffad8",
+        "themes/focus-night.toml": "022b1285eb2083a772d3334c3d7a51a755a7d061882c28570745e81918ff4b6c",
+        "themes/focus.toml": "94b1e4f9a7a10dfc2c53e3678007dbcb2344c3ec69021574630936dd7bc0603d",
+        "themes/high-contrast.toml": "641c44333e5c89ff4356cdfbb163c8b7d7268029bacf1e5c2b7ec00b295b2477",
+        "themes/midnight.toml": "a1183175038f9eabaf548ec73c1fb54620840f0db9e44a851a218d748f27c75a",
+        "themes/sepia.toml": "973126097419b492128efb3218f4c99cf08f3038d2b48759f057f731cf2957d8",
+        "themes/turbo.toml": "1da70914159910448ef7a6ec479aad23db29162b23d38cfbfdca163c4635e7cb"
+      }
+    },
+    {
       "id": "word_goal",
       "name": "Word Goal",
       "version": "1.0.0",

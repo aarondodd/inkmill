@@ -15,8 +15,14 @@
 - Documents changed on disk by another program reload when you switch to
   them, or warn when they have unsaved edits.
 - New plugins: Binder (chapters, binder documents, related documents,
-  manuscript export) and Git Sync (commit, pull, push). Word Goal moved from
+  manuscript export), Git Sync (commit, pull, push) and Themes (ten themes,
+  a live-preview gallery, user themes as TOML files). Word Goal moved from
   `examples/` into `plugins/`.
+- Any Textual theme (Nord, Gruvbox, Dracula, ...) now gets menus, dialogs
+  and status colors worked out from its own palette instead of
+  WordPerfect's gray. `inkmill.themes.make_theme` builds a complete theme
+  from four colors.
+- Dialogs and menus draw over the document instead of a blank screen.
 
 ## 0.1.0 (unreleased)
 

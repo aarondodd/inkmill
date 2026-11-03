@@ -2,17 +2,28 @@
 
 Each Inkmill theme is a Textual :class:`~textual.theme.Theme` plus a set of
 ``im-*`` variables the stylesheet uses for the menu bar, dropdowns, status bar
-and file manager. Any Textual theme also works: missing ``im-*`` values fall
-back to :data:`VARIABLE_DEFAULTS`, which derive from the theme's own palette.
+and file manager. Any Textual theme also works: :func:`derive_variables`
+works out every missing ``im-*`` value from the theme's own palette, so
+Nord, Dracula and the rest get menus and dialogs in their own colors.
 """
 
 from __future__ import annotations
 
 from rich.style import Style
+from textual.color import Color
 from textual.theme import Theme
 from textual.widgets.text_area import TextAreaTheme
 
-# Fallbacks for themes that do not define Inkmill's variables.
+# The names of Inkmill's own variables, without the "im-" prefix. Theme files
+# and make_theme() use these with underscores (menu_bg).
+UI_KEYS = (
+    "menu-bg", "menu-fg", "menu-hl-bg", "menu-hl-fg", "menu-key",
+    "status-bg", "status-fg", "select-bg", "select-fg", "cursor-bg", "cursor-fg",
+    "dialog-bg", "dialog-fg", "dialog-border", "input-bg", "input-fg",
+    "dim", "heading", "mark",
+)
+
+# WordPerfect values, used only if a theme's palette cannot be read at all.
 VARIABLE_DEFAULTS: dict[str, str] = {
     "im-menu-bg": "#aaaaaa",
     "im-menu-fg": "#000000",
@@ -36,27 +47,112 @@ VARIABLE_DEFAULTS: dict[str, str] = {
 }
 
 
-def _theme(name: str, *, dark: bool, background: str, foreground: str, primary: str, **im: str) -> Theme:
-    variables = {f"im-{k.replace('_', '-')}": v for k, v in im.items()}
-    variables.setdefault("block-cursor-background", variables.get("im-cursor-bg", foreground))
-    variables.setdefault("block-cursor-foreground", variables.get("im-cursor-fg", background))
-    variables.setdefault("block-cursor-text-style", "none")
-    variables.setdefault("input-selection-background", variables.get("im-select-bg", primary) + " 60%")
+def _contrast(color: Color) -> str:
+    return "#000000" if color.brightness > 0.55 else "#ffffff"
+
+
+def _distinct(color: Color, against: Color, fallback: Color) -> Color:
+    """``color`` unless it is too close to ``against`` to read, else ``fallback``."""
+    return color if abs(color.brightness - against.brightness) > 0.18 else fallback
+
+
+def derive_variables(theme: Theme) -> dict[str, str]:
+    """Every ``im-*`` variable, worked out from a theme's base colors."""
+    try:
+        system = theme.to_color_system().generate()
+        bg = Color.parse(system["background"])
+        fg = Color.parse(theme.foreground or system["foreground"])
+        primary = Color.parse(system["primary"])
+        accent = Color.parse(theme.accent or system["primary"])
+        panel = Color.parse(theme.panel or system["panel"])
+    except Exception:
+        return dict(VARIABLE_DEFAULTS)
+    if abs(panel.brightness - bg.brightness) < 0.04:
+        panel = bg.lighten(0.12) if theme.dark else bg.darken(0.08)
+    dim = fg.blend(bg, 0.45)
+    heading = _distinct(accent, bg, fg)
+    return {
+        "im-menu-bg": panel.hex,
+        "im-menu-fg": fg.hex,
+        "im-menu-hl-bg": primary.hex,
+        "im-menu-hl-fg": _contrast(primary),
+        "im-menu-key": _distinct(accent, panel, primary).hex,
+        "im-status-bg": bg.hex,
+        "im-status-fg": dim.hex,
+        "im-select-bg": primary.hex,
+        "im-select-fg": _contrast(primary),
+        "im-cursor-bg": fg.hex,
+        "im-cursor-fg": bg.hex,
+        "im-dialog-bg": panel.hex,
+        "im-dialog-fg": fg.hex,
+        "im-dialog-border": primary.hex,
+        "im-input-bg": bg.hex,
+        "im-input-fg": fg.hex,
+        "im-dim": dim.hex,
+        "im-heading": heading.hex,
+        "im-mark": heading.hex,
+    }
+
+
+def make_theme(
+    name: str,
+    *,
+    dark: bool,
+    background: str,
+    foreground: str,
+    primary: str,
+    accent: str | None = None,
+    **ui: str,
+) -> Theme:
+    """Build an Inkmill theme from four colors plus any ``im-*`` overrides.
+
+    ``ui`` keys are the names in :data:`UI_KEYS` with underscores, such as
+    ``menu_bg``. Anything left out is derived, so a theme can be as small as
+    a background, a foreground and a highlight color.
+    """
+    unknown = [k for k in ui if k.replace("_", "-") not in UI_KEYS]
+    if unknown:
+        raise ValueError(f"unknown theme keys: {', '.join(sorted(unknown))}")
+    for value in (background, foreground, primary, accent, *ui.values()):
+        if value is not None:
+            try:
+                Color.parse(value)
+            except Exception as exc:  # ColorParseError is not a ValueError
+                raise ValueError(f"{value!r} is not a color; use #rrggbb") from exc
+    explicit = {f"im-{k.replace('_', '-')}": v for k, v in ui.items()}
+    base = Theme(
+        name=name,
+        primary=primary,
+        accent=accent or explicit.get("im-heading") or primary,
+        foreground=foreground,
+        background=background,
+        surface=background,
+        panel=explicit.get("im-menu-bg"),
+        dark=dark,
+    )
+    variables = {**derive_variables(base), **explicit}
+    variables["block-cursor-background"] = variables["im-cursor-bg"]
+    variables["block-cursor-foreground"] = variables["im-cursor-fg"]
+    variables["block-cursor-text-style"] = "none"
+    variables["input-selection-background"] = variables["im-select-bg"] + " 60%"
     return Theme(
         name=name,
         primary=primary,
         secondary=primary,
-        accent=variables.get("im-heading", primary),
+        accent=variables["im-heading"],
         foreground=foreground,
         background=background,
         surface=background,
-        panel=variables.get("im-menu-bg", background),
-        warning="#ffff55",
-        error="#ff5555",
-        success="#55ff55",
+        panel=variables["im-menu-bg"],
+        warning="#ffff55" if dark else "#9a6700",
+        error="#ff5555" if dark else "#c62828",
+        success="#55ff55" if dark else "#2e7d32",
         dark=dark,
         variables=variables,
     )
+
+
+_theme = make_theme
 
 
 # WordPerfect 5.1 for DOS: CGA blue, white text, gray pull-down menus.
@@ -205,7 +301,7 @@ def syntax_theme(theme: Theme) -> TextAreaTheme:
     Only syntax colors are set; the background, cursor and selection keep
     following the stylesheet, so they always match the screen theme.
     """
-    v = {**VARIABLE_DEFAULTS, **theme.variables}
+    v = {**derive_variables(theme), **theme.variables}
     heading = v["im-heading"]
     dim = v["im-dim"]
     mark = v["im-mark"]

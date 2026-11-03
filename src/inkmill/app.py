@@ -33,7 +33,7 @@ from .plugins import EventBus
 from .recovery import RecoveryStore
 from .screens.dialogs import ConfirmDialog, FindRequest
 from .system import PreviewServer
-from .themes import BUILTIN_THEMES, VARIABLE_DEFAULTS
+from .themes import BUILTIN_THEMES, VARIABLE_DEFAULTS, derive_variables
 from .widgets.editor import InkEditor
 from .widgets.menubar import MenuScreen, MenuStrip
 from .widgets.statusbar import StatusBar
@@ -61,7 +61,7 @@ class InkmillApp(App):
     COMMAND_PALETTE_BINDING = "ctrl+p"
 
     CSS = """
-    Screen { background: $background; color: $foreground; layers: base overlay; }
+    Screen { color: $foreground; layers: base overlay; }
     #menubar { dock: top; display: none; }
     #menubar.-pinned { display: block; }
     #page { width: 100%; height: 1fr; align-horizontal: center; }
@@ -129,7 +129,13 @@ class InkmillApp(App):
     # -- theme and keys --------------------------------------------------
 
     def get_theme_variable_defaults(self) -> dict[str, str]:
-        return {**super().get_theme_variable_defaults(), **VARIABLE_DEFAULTS}
+        # Worked out per theme, so any Textual theme gets matching menus and
+        # dialogs; a theme's own im-* variables still win.
+        try:
+            derived = derive_variables(self.current_theme)
+        except Exception:
+            derived = VARIABLE_DEFAULTS
+        return {**super().get_theme_variable_defaults(), **VARIABLE_DEFAULTS, **derived}
 
     def watch_theme(self, _theme: str) -> None:
         if not self.screen_stack:
