@@ -185,11 +185,59 @@ lists their ids.
 
 ## Plugins
 
-A plugin is a Python file with a `register(api)` function. Put it in the
-plugins folder, or publish it as a package with an `inkmill.plugins` entry
-point. Plugins can add commands, menus, key bindings, document formats,
-exporters and screen themes. See [docs/plugins.md](docs/plugins.md) and the
-working example in [examples/plugins/word_goal.py](examples/plugins/word_goal.py).
+View > Plugins lists the plugins available for your version of Inkmill,
+with each one's README, and installs, updates, disables and removes them.
+Changes take effect after a restart, which Inkmill does in place: your
+documents stay open, unsaved text included.
+
+![Plugins](docs/screenshots/plugins.png)
+
+| Key | Action |
+|-----|--------|
+| 1, Enter | Install the highlighted plugin |
+| 2, Del | Remove it (its settings are kept) |
+| 3 / 4 | Update it / update everything |
+| 5 | Enable or disable it without removing it |
+| 6 | Check the index again |
+| 7 | Choose the source: online, or a local folder |
+| 8 | Roll back to the version the last update replaced |
+| R | Restart now |
+
+The list comes from `plugins/index.json` in this repository, so a new
+plugin or version is available as soon as it is merged. For a machine
+without network access, clone the repository and point 7 (Source) at the
+clone; it installs the same plugins from disk. Every file is checked
+against the hash in the index before anything is installed, and a plugin
+that needs a newer Inkmill is shown but not installed.
+
+```toml
+[plugin_manager]
+source = "online"            # or "local"
+local_path = "~/src/inkmill" # a clone, for source = "local"
+check_updates = "manual"     # "startup" checks once when Inkmill starts
+# index_url = "..."          # another index, for a fork or a branch
+```
+
+Plugins are Python code and run with your permissions, so install the ones
+you trust.
+
+### Bundled plugins
+
+| Plugin | What it does |
+|--------|--------------|
+| [Binder](plugins/binder/README.md) | Chapters of a long work as separate documents: a binder (parent) holds the order, chapters link to it, and any document can list related ones. Alt+F5 shows them; Alt+PgUp/PgDn move between chapters; the whole binder exports as one manuscript. |
+| [Git Sync](plugins/git_sync/README.md) | Commit the current document with a message (Ctrl+F12), pull and push the repository it lives in. Works with whatever repository holds each document; needs `git`. |
+| [Word Goal](plugins/word_goal/README.md) | A word target for this session with a progress bar. |
+
+![The Binder list](docs/screenshots/binder.png)
+
+### Writing plugins
+
+A plugin is a folder with a `plugin.toml` and an `__init__.py` holding
+`register(api)`. Plugins can add commands, menus, key bindings, status line
+segments, document formats, exporters and screen themes, and react to
+events such as a document being saved. See [docs/plugins.md](docs/plugins.md).
+`inkmill --plugins` lists what is installed and whether each one loads.
 
 ## Development
 

@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.2.0 (unreleased)
+
+- View > Plugins: browse, install, update, disable, remove and roll back
+  plugins from the index in this repository, online or from a local clone.
+  Files are verified against SHA-256 hashes in the index; plugins declare
+  the Inkmill versions they support.
+- Restart in place (after plugin changes, or Restart Inkmill in the
+  palette), keeping open documents and unsaved text.
+- Plugin manifests (`plugin.toml`) and folder plugins with several modules;
+  `inkmill --plugins` lists them.
+- Plugin API: events (`api.on`), status line segments, `run_in_thread`, and
+  `inkmill.frontmatter` for editing front matter in place.
+- Documents changed on disk by another program reload when you switch to
+  them, or warn when they have unsaved edits.
+- New plugins: Binder (chapters, binder documents, related documents,
+  manuscript export) and Git Sync (commit, pull, push). Word Goal moved from
+  `examples/` into `plugins/`.
+
 ## 0.1.0 (unreleased)
 
 First version.

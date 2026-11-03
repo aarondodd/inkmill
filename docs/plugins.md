@@ -1,32 +1,81 @@
 # Writing Inkmill plugins
 
-A plugin is a Python module with a `register(api)` function. Inkmill calls it
-once at startup with a `PluginAPI` object, and everything the plugin adds goes
-through that object.
+A plugin is a Python package with a `register(api)` function and a
+`plugin.toml` manifest. Inkmill calls `register` once at startup with a
+`PluginAPI` object, and everything the plugin adds goes through that object.
 
-## Where plugins live
+The plugins that ship with Inkmill live in the repository's `plugins/`
+folder and are working examples: `word_goal` is the smallest, `binder` and
+`git_sync` use most of the API.
 
-Inkmill loads plugins from two places:
+## Layout and manifest
 
-1. `*.py` files in the plugins folder. `inkmill --paths` prints its location,
-   which is `~/.config/inkmill/plugins` on Linux and Termux and
-   `%LOCALAPPDATA%\inkmill\plugins` on Windows. Files starting with `_` are
-   skipped.
-2. Installed packages declaring an entry point in the `inkmill.plugins` group:
+```
+plugins/my_plugin/
+  plugin.toml
+  __init__.py      # def register(api): ...
+  README.md        # shown in View > Plugins
+  helpers.py       # any other modules; import them with "from . import helpers"
+```
+
+```toml
+id = "my_plugin"                 # must match the folder name
+name = "My Plugin"
+version = "1.2.0"
+requires_inkmill = ">=0.2"       # any PEP 440 specifier, e.g. ">=0.2,<1"
+summary = "One line for the plugin list."
+author = "Your Name"
+license = "MIT"
+external = ["pandoc"]            # optional: commands it needs; shown as found or not found
+```
+
+`requires_inkmill` is checked twice: View > Plugins will not install a
+plugin the running Inkmill cannot run, and the loader skips one copied in by
+hand and says why. Plugins may import only the standard library and
+Inkmill; there is no way to install extra packages alongside them.
+
+## Where plugins are loaded from
+
+1. Folders in the plugins folder (`inkmill --paths` prints it:
+   `~/.config/inkmill/plugins` on Linux and Termux,
+   `%LOCALAPPDATA%\inkmill\plugins` on Windows). This is where View >
+   Plugins installs.
+2. Single `*.py` files in the same folder, for quick personal plugins. They
+   have no version and the manager lists them as unmanaged. Names starting
+   with `_` are skipped.
+3. Installed Python packages declaring an entry point in the
+   `inkmill.plugins` group:
 
    ```toml
    [project.entry-points."inkmill.plugins"]
    wordstats = "inkmill_wordstats:register"
    ```
 
-A plugin that raises during `register` is reported in Help > About and as a
-startup notice; Inkmill keeps running without it. To turn one off, list it in
-settings.toml:
+`inkmill --plugins` lists what Inkmill finds and whether each one loads. A
+plugin that raises during `register` is reported as a startup notice and in
+Help > About; Inkmill keeps running without it. To turn one off, use 5 in
+View > Plugins, or list it in settings.toml:
 
 ```toml
 [plugins]
 disabled = ["word_goal"]
 ```
+
+## Publishing to the plugin index
+
+View > Plugins reads `plugins/index.json`, which lists every plugin with its
+manifest fields and a SHA-256 hash of each file. To add or update a plugin
+in this repository:
+
+1. Put it in `plugins/<id>/` and bump `version` in its `plugin.toml` for any
+   change (CI refuses changed files under an unchanged version).
+2. Run `python scripts/build_plugin_index.py`.
+3. Commit the plugin and the regenerated `index.json` together. CI runs the
+   script with `--check` and fails if the index is stale.
+
+Users get the new version the next time they press 6 (Check Again) or open
+View > Plugins. The manager can also read an index from another URL or from
+a local clone, so a fork or a private collection works the same way.
 
 ## Commands
 
@@ -38,7 +87,7 @@ def register(api):
         app.active_editor.insert(datetime.now().strftime("%H:%M"))
 ```
 
-`api.command(id, label, keys="", *, menu=None, description="", enabled=None)`
+`api.command(id, label, keys="", *, menu=None, description="", enabled=None, separator=False)`
 registers a command and returns a decorator.
 
 - `id` should be namespaced with the plugin's name to avoid collisions.
@@ -62,6 +111,74 @@ async def handler(app):
 
 An exception inside a handler is shown as an error notice and does not end the
 session.
+
+## Events
+
+```python
+@api.on("document_saved")
+def saved(app, doc):
+    app.status.flash(f"{doc.title}: {doc.word_count()} words")
+```
+
+| Event | Arguments | When |
+|-------|-----------|------|
+| `ready` | | Startup finished and the first documents are open |
+| `document_opened` | `doc` | A file was opened (not new untitled documents) |
+| `document_activated` | `doc` | The user switched to a document |
+| `document_saved` | `doc` | After a successful save |
+| `document_closed` | `doc` | After a document was closed |
+| `document_reloaded` | `doc` | Inkmill re-read a file another program changed |
+| `file_moved` | `old`, `new` | List Files moved or renamed a file |
+| `file_deleted` | `path` | List Files deleted a file |
+
+A handler may be `async`; it then runs in a worker and can show dialogs. An
+exception in a handler is reported and does not stop other handlers.
+
+## Status line
+
+```python
+@api.status_segment
+def segment(app):
+    return "draft 3"        # or None to show nothing
+```
+
+The text appears before the word count. Segments are recomputed when the
+status line is fully refreshed (switching documents, saving) and when you
+call `api.refresh_status()`. Keep the function cheap: do slow work (a
+subprocess, reading many files) elsewhere, cache it, then call
+`refresh_status()`. `git_sync` shows the pattern.
+
+## Blocking work
+
+`await api.run_in_thread(func, *args)` runs a blocking call off the UI
+thread from an async handler, so the screen stays responsive while git or a
+converter runs.
+
+## Front matter
+
+`inkmill.frontmatter` reads and edits YAML front matter without a YAML
+dependency and without disturbing what it does not touch:
+
+```python
+from inkmill import frontmatter
+
+meta = frontmatter.read(doc.text)               # {"title": "...", "tags": ["a", "b"]}
+text = frontmatter.update(doc.text, {"status": "draft", "old_key": None})
+app.replace_document_text(doc, text)            # one undoable edit
+```
+
+`update` sets or removes only the keys it is given; comments, ordering and
+nested values it does not understand stay exactly as they were.
+
+## Changing documents
+
+| Call | What it does |
+|------|--------------|
+| `app.replace_document_text(doc, text)` | Replace an open document's text as one undoable edit |
+| `app.reload_document(doc)` | Re-read it from disk (refuses when it has unsaved edits) |
+| `app.save_document(doc)` | Save, with the usual status message and `document_saved` event |
+| `app.open_path(path)` | Open a file, or switch to it if it is open |
+| `app.request_restart(message)` | Restart Inkmill in place, keeping documents open |
 
 ## Menus
 

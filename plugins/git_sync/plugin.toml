@@ -1,0 +1,8 @@
+id = "git_sync"
+name = "Git Sync"
+version = "1.0.0"
+requires_inkmill = ">=0.2"
+summary = "Commit, pull and push the git repository the current document lives in."
+author = "Aaron Dodd"
+license = "MIT"
+external = ["git"]

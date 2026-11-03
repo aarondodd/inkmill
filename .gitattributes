@@ -1,0 +1,5 @@
+# Plugin files are hashed into plugins/index.json. Keep them byte-identical on
+# every checkout (including Windows with core.autocrlf) so a local clone used
+# as an offline plugin source verifies.
+plugins/** text eol=lf
+*.png binary

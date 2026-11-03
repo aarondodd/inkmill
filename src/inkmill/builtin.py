@@ -556,6 +556,36 @@ async def open_settings(app: "InkmillApp") -> None:
 # -- Help ----------------------------------------------------------------
 
 
+async def plugin_manager(app: "InkmillApp") -> None:
+    from .screens.plugins import PluginManagerScreen
+
+    result = await app.push_screen_wait(PluginManagerScreen())
+    if result == "restart":
+        app.request_restart("Restarted. Plugin changes are active.")
+
+
+def restart(app: "InkmillApp") -> None:
+    app.request_restart()
+
+
+async def check_plugin_updates(app: "InkmillApp") -> None:
+    """Startup check, when [plugin_manager] check_updates = "startup"."""
+    import asyncio
+
+    from .pluginmanager import PluginSourceError, Source, build_rows, fetch_index, installed_plugins
+
+    if app.settings.plugin_manager.get("check_updates") != "startup":
+        return
+    try:
+        index = await asyncio.to_thread(fetch_index, Source.from_settings(app.settings.plugin_manager))
+    except PluginSourceError:
+        return
+    rows = build_rows(index, installed_plugins(app.plugin_dir))
+    updates = [r.name for r in rows if r.has_update]
+    if updates:
+        app.notify(f"Plugin updates: {', '.join(updates)}. View > Plugins installs them.", title="Plugins", timeout=10)
+
+
 async def show_keys(app: "InkmillApp") -> None:
     table = Table(show_header=True, header_style="bold", box=None, padding=(0, 2))
     table.add_column("Key")
@@ -617,8 +647,9 @@ async def about(app: "InkmillApp") -> None:
         f"Plugins:  {config_dir() / 'plugins'}",
     ]
     for info in app.plugin_info:
-        status = "error" if info.error else "loaded"
-        lines.append(f"  {info.name}: {status}")
+        status = "error" if info.error else (info.skipped or "loaded")
+        version = f" {info.version}" if info.version else ""
+        lines.append(f"  {info.name}{version}: {status}")
         if info.error:
             lines.append("    " + info.error.strip().splitlines()[-1])
     await app.push_screen_wait(TextDialog("About", Text("\n".join(lines))))
@@ -692,6 +723,8 @@ def register_builtins(app: "InkmillApp") -> None:
     c("view.page_width", "&Page Width...")(page_width)
     c("view.settings", "Settings &File...")(open_settings)
     c("view.palette", "&Command Palette...", "ctrl+p")(lambda a: a.action_command_palette())
+    c("view.plugins", "Pl&ugins...", description="Install, update and remove plugins")(plugin_manager)
+    c("app.restart", "Restart Inkmill", description="Reload plugins; open documents stay open")(restart)
 
     c("help.keys", "&Keys", "f1")(show_keys)
     c("help.markdown", "&Markdown Reference")(markdown_help)
@@ -723,6 +756,7 @@ def register_builtins(app: "InkmillApp") -> None:
     ]))
     app.menus.add_menu(Menu("view", "&View", [
         M("view.theme"), M("view.menu_bar"), M("view.status_bar"), M("view.wrap"), M("view.page_width"), S(),
-        M("view.palette"), M("view.settings"),
+        M("view.palette"), M("view.plugins"), M("view.settings"),
     ]))
+    app.events.on("ready", check_plugin_updates)
     app.menus.add_menu(Menu("help", "&Help", [M("help.keys"), M("help.markdown"), S(), M("help.about")]))
