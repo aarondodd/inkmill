@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "inkmill"
-version = "0.1.0"
+version = "0.2.0"
 description = "A distraction-free terminal word processor for Markdown, with WordPerfect-style file management."
 readme = "README.md"
 license = "MIT"
@@ -27,6 +27,7 @@ dependencies = [
     "linkify-it-py>=2.0",
     "platformdirs>=4.0",
     "tomli-w>=1.0",
+    "packaging>=23.0",
 ]
 
 [project.optional-dependencies]

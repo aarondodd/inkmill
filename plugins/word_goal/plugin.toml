@@ -1,0 +1,7 @@
+id = "word_goal"
+name = "Word Goal"
+version = "1.0.0"
+requires_inkmill = ">=0.2"
+summary = "Set a word target for this session and watch the progress bar fill."
+author = "Aaron Dodd"
+license = "MIT"

@@ -61,11 +61,13 @@ async def test_plugin_command_runs_from_its_key(tmp_path):
         assert app.active_document.text == "HEY"
 
 
-def test_bundled_example_plugin_loads(tmp_path):
+def test_repository_plugins_load(tmp_path):
     from pathlib import Path
 
-    examples = Path(__file__).parent.parent / "examples" / "plugins"
-    app = make_app(tmp_path, examples)
+    plugins = Path(__file__).parent.parent / "plugins"
+    app = make_app(tmp_path, plugins)
     assert all(p.error is None for p in app.plugin_info), [p.error for p in app.plugin_info]
     assert "word_goal.progress" in app.commands
     assert app.menus.get("tools") is not None
+    assert app.menus.get("git") is not None
+    assert {p.name: p.version for p in app.plugin_info}["binder"] == "1.0.0"

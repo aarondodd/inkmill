@@ -54,6 +54,9 @@ class Settings:
     keys: dict[str, str] = field(default_factory=dict)
     # Free-form per-plugin settings, keyed by plugin name.
     plugins: dict[str, Any] = field(default_factory=dict)
+    # Where View > Plugins looks for plugins: source = "online" or "local",
+    # index_url for online, local_path (a clone of the Inkmill repo) for local.
+    plugin_manager: dict[str, Any] = field(default_factory=dict)
     _extra: dict[str, Any] = field(default_factory=dict, repr=False)
 
     @classmethod

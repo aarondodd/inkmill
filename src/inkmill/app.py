@@ -11,8 +11,9 @@ from __future__ import annotations
 
 import logging
 import tempfile
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterable
+from typing import Any, Callable, Iterable
 
 from textual.app import App, ComposeResult, SystemCommand
 from textual.binding import Binding
@@ -28,10 +29,11 @@ from .documents import Document, DocumentList
 from .export import builtin_exporters
 from .formats import DocumentFormat, builtin_formats
 from .menus import MenuModel
+from .plugins import EventBus
 from .recovery import RecoveryStore
 from .screens.dialogs import ConfirmDialog, FindRequest
 from .system import PreviewServer
-from .themes import BUILTIN_THEMES, VARIABLE_DEFAULTS
+from .themes import BUILTIN_THEMES, VARIABLE_DEFAULTS, derive_variables
 from .widgets.editor import InkEditor
 from .widgets.menubar import MenuScreen, MenuStrip
 from .widgets.statusbar import StatusBar
@@ -41,13 +43,25 @@ log = logging.getLogger("inkmill")
 MENU_KEYS = ("escape", "f10", "alt+equals_sign")
 
 
+@dataclass
+class Handoff:
+    """What one app instance passes to the next when Inkmill restarts in place."""
+
+    docs: list[dict[str, Any]] = field(default_factory=list)
+    active: int = 0
+    # Recovery snapshot keys written just before the restart, discarded once
+    # the documents are back on screen.
+    snapshot_keys: list[str] = field(default_factory=list)
+    message: str = ""
+
+
 class InkmillApp(App):
     TITLE = APP_NAME
     ENABLE_COMMAND_PALETTE = True
     COMMAND_PALETTE_BINDING = "ctrl+p"
 
     CSS = """
-    Screen { background: $background; color: $foreground; layers: base overlay; }
+    Screen { color: $foreground; layers: base overlay; }
     #menubar { dock: top; display: none; }
     #menubar.-pinned { display: block; }
     #page { width: 100%; height: 1fr; align-horizontal: center; }
@@ -65,8 +79,15 @@ class InkmillApp(App):
         state: State | None = None,
         load_plugins: bool = True,
         plugin_dir: Path | None = None,
+        handoff: Handoff | None = None,
     ) -> None:
         super().__init__()
+        self.handoff = handoff
+        # Set by request_restart(); __main__ starts a fresh app when it is.
+        self.restart_handoff: Handoff | None = None
+        self.events = EventBus(self)
+        self.status_segments: list[Callable[["InkmillApp"], str | None]] = []
+        self.plugin_dir = plugin_dir
         self.settings = settings or Settings.load()
         self.state = state or State()
         self.commands = CommandRegistry()
@@ -94,14 +115,27 @@ class InkmillApp(App):
             self.plugin_info = _load(self, plugin_dir)
         unknown = self.commands.apply_key_overrides(self.settings.keys)
         self._startup_warnings = [f"Unknown command in [keys]: {u}" for u in unknown]
-        self._startup_warnings += [f"Plugin {p.name} failed to load" for p in self.plugin_info if p.error]
+        for info in self.plugin_info:
+            if info.error:
+                from .pluginmanager import previous_version
+
+                hint = "; View > Plugins can roll it back" if previous_version(info.name, plugin_dir) else ""
+                self._startup_warnings.append(f"Plugin {info.name} failed to load{hint}")
+            elif info.skipped and info.skipped != "disabled":
+                self._startup_warnings.append(f"Plugin {info.name} not loaded: {info.skipped}")
         self._bind_command_keys()
         self.theme = self.settings.theme if self.settings.theme in self.available_themes else "wordperfect"
 
     # -- theme and keys --------------------------------------------------
 
     def get_theme_variable_defaults(self) -> dict[str, str]:
-        return {**super().get_theme_variable_defaults(), **VARIABLE_DEFAULTS}
+        # Worked out per theme, so any Textual theme gets matching menus and
+        # dialogs; a theme's own im-* variables still win.
+        try:
+            derived = derive_variables(self.current_theme)
+        except Exception:
+            derived = VARIABLE_DEFAULTS
+        return {**super().get_theme_variable_defaults(), **VARIABLE_DEFAULTS, **derived}
 
     def watch_theme(self, _theme: str) -> None:
         if not self.screen_stack:
@@ -147,15 +181,18 @@ class InkmillApp(App):
 
     async def on_mount(self) -> None:
         self.apply_view_settings()
-        opened = False
-        paths = self.initial_paths
-        if not paths and self.settings.restore_session:
-            paths = [Path(p) for p in self.state.session if Path(p).exists()]
-        for path in paths:
-            if await self.open_path(path, quiet=bool(not self.initial_paths)):
-                opened = True
-        if not opened:
-            await self.new_document()
+        if self.handoff is not None:
+            await self._restore_handoff(self.handoff)
+        else:
+            opened = False
+            paths = self.initial_paths
+            if not paths and self.settings.restore_session:
+                paths = [Path(p) for p in self.state.session if Path(p).exists()]
+            for path in paths:
+                if await self.open_path(path, quiet=bool(not self.initial_paths)):
+                    opened = True
+            if not opened:
+                await self.new_document()
         if self.settings.recovery_interval > 0:
             self._recovery_timer = self.set_interval(self.settings.recovery_interval, self.snapshot_unsaved)
         # Nothing has been snapshotted yet this session, so any snapshot on
@@ -169,7 +206,11 @@ class InkmillApp(App):
             )
         for warning in self._startup_warnings:
             self.notify(warning, severity="warning", timeout=8)
-        self.status.flash(f"{format_key(MENU_KEYS[0])} opens the menu  |  F1 help  |  F5 list files", seconds=6)
+        if self.handoff is not None and self.handoff.message:
+            self.status.flash(self.handoff.message, seconds=6)
+        else:
+            self.status.flash(f"{format_key(MENU_KEYS[0])} opens the menu  |  F1 help  |  F5 list files", seconds=6)
+        self.events.emit("ready")
 
     def apply_view_settings(self) -> None:
         menubar = self.query_one("#menubar", MenuStrip)
@@ -183,7 +224,9 @@ class InkmillApp(App):
 
     @property
     def status(self) -> StatusBar:
-        return self.query_one(StatusBar)
+        # The status bar lives on the base screen, whatever is on top of it.
+        base = self.screen_stack[0] if self.screen_stack else self.screen
+        return base.query_one(StatusBar)
 
     # -- documents ---------------------------------------------------------
 
@@ -251,7 +294,9 @@ class InkmillApp(App):
                 self.notify(f"Cannot open {path.name}: {exc.strerror or exc}", severity="error")
             return None
         self.state.add_recent(path)
-        return await self._add(doc)
+        await self._add(doc)
+        self.events.emit("document_opened", doc)
+        return doc
 
     def activate(self, doc: Document) -> None:
         self.docs.activate(doc)
@@ -260,7 +305,63 @@ class InkmillApp(App):
         editor = self.editor_for(doc)
         if editor is not None:
             editor.focus()
+        self.check_disk_changes(doc)
         self.update_status(full=True)
+        self.events.emit("document_activated", doc)
+
+    def check_disk_changes(self, doc: Document) -> None:
+        """Reload a document another program changed, or warn if it has edits."""
+        if not doc.changed_on_disk():
+            return
+        if doc.dirty:
+            doc.disk_mtime = doc.current_mtime()
+            self.notify(
+                f"{doc.title} changed on disk and has unsaved edits here. Saving will overwrite the other version.",
+                severity="warning",
+                timeout=10,
+            )
+            return
+        if self.reload_document(doc):
+            self.status.flash(f"Reloaded {doc.title}: it changed on disk.")
+
+    def reload_document(self, doc: Document) -> bool:
+        """Read ``doc`` from disk again, keeping the cursor where it was.
+
+        Refuses (returns False) when the document has unsaved edits.
+        """
+        if doc.path is None or doc.dirty or not doc.path.exists():
+            return False
+        try:
+            text = doc.format.load(doc.path)
+        except OSError:
+            return False
+        doc.disk_mtime = doc.current_mtime()
+        if text == doc.text:
+            return True
+        editor = self.editor_for(doc)
+        doc.saved_text = text
+        doc.text = text
+        if editor is not None:
+            row, col = editor.cursor_location
+            editor.load_text(text)
+            last = max(0, editor.document.line_count - 1)
+            row = min(row, last)
+            editor.cursor_location = (row, min(col, len(editor.document.get_line(row))))
+        self.recovery.clear(doc)
+        if doc is self.docs.active:
+            self.update_status(full=True)
+        self.events.emit("document_reloaded", doc)
+        return True
+
+    def replace_document_text(self, doc: Document, text: str) -> None:
+        """Replace a document's whole text as one undoable edit."""
+        editor = self.editor_for(doc)
+        if editor is None:
+            doc.text = text
+            return
+        end = editor.document.end
+        editor.replace(text, (0, 0), end)
+        doc.text = editor.text
 
     async def close_document(self, doc: Document) -> None:
         editor = self.editor_for(doc)
@@ -268,6 +369,7 @@ class InkmillApp(App):
         self.docs.remove(doc)
         if editor is not None:
             await editor.remove()
+        self.events.emit("document_closed", doc)
         if not self.docs.docs:
             await self.new_document()
         else:
@@ -286,6 +388,7 @@ class InkmillApp(App):
         self.status.flash(f"Saved {target}")
         self.update_status(full=True)
         self.after_save(doc)
+        self.events.emit("document_saved", doc)
         return True
 
     def after_save(self, doc: Document) -> None:
@@ -301,13 +404,17 @@ class InkmillApp(App):
         doc = self.docs.find_path(old)
         if doc is not None:
             doc.path = new
+            doc.disk_mtime = doc.current_mtime()
             self.update_status(full=True)
+        self.events.emit("file_moved", old, new)
 
     def file_deleted(self, path: Path) -> None:
         doc = self.docs.find_path(path)
         if doc is not None:
             doc.saved_text = "\0deleted"
+            doc.disk_mtime = None
             self.update_status(full=True)
+        self.events.emit("file_deleted", path)
 
     async def confirm_discard(self, doc: Document) -> bool:
         """Ask to save a dirty document. Returns False if the user cancels."""
@@ -360,20 +467,39 @@ class InkmillApp(App):
             marker = " *" if doc.dirty else ""
             status.set_left(f"{doc.display_path}{marker}")
             self.sub_title = doc.title
+        if full or not hasattr(self, "_segments"):
+            self._segments = self._segment_text()
         if full or not hasattr(self, "_words"):
             self._words = doc.word_count()
         elif not position_only:
             if self._status_timer is not None:
                 self._status_timer.stop()
             self._status_timer = self.set_timer(0.4, self._recount)
-        status.set_right(f"{self._words:,} words  {self._position}")
+        status.set_right(f"{self._segments}{self._words:,} words  {self._position}")
+
+    def _segment_text(self) -> str:
+        parts = []
+        for func in self.status_segments:
+            try:
+                text = func(self)
+            except Exception:
+                log.exception("status segment failed")
+                continue
+            if text:
+                parts.append(text)
+        return "".join(f"{p}  " for p in parts)
 
     def _recount(self) -> None:
         self._status_timer = None
         doc = self.docs.active
-        if doc is not None:
-            self._words = doc.word_count()
-            self.status.set_right(f"{self._words:,} words  {self._position}")
+        if doc is None:
+            return
+        try:
+            status = self.status
+        except Exception:  # the app is shutting down
+            return
+        self._words = doc.word_count()
+        status.set_right(f"{self._segments}{self._words:,} words  {self._position}")
 
     # -- menus and commands ----------------------------------------------
 
@@ -425,6 +551,70 @@ class InkmillApp(App):
 
     async def action_quit(self) -> None:
         self.run_command("file.quit")
+
+    def build_handoff(self, message: str = "") -> Handoff:
+        handoff = Handoff(message=message)
+        for doc in self.docs:
+            editor = self.editor_for(doc)
+            if doc.dirty and doc.text:
+                self.recovery.snapshot(doc)
+                handoff.snapshot_keys.append(doc.recovery_key)
+            handoff.docs.append(
+                {
+                    "path": str(doc.path) if doc.path else None,
+                    "text": doc.text,
+                    "saved_text": doc.saved_text,
+                    "format": doc.format.id,
+                    "untitled_number": doc.untitled_number,
+                    "disk_mtime": doc.disk_mtime,
+                    "cursor": tuple(editor.cursor_location) if editor is not None else (0, 0),
+                }
+            )
+        active = self.docs.active
+        handoff.active = self.docs.docs.index(active) if active in self.docs.docs else 0
+        return handoff
+
+    async def _restore_handoff(self, handoff: Handoff) -> None:
+        restored: list[Document] = []
+        for item in handoff.docs:
+            fmt = self.formats.get(item.get("format", "")) or self.default_format()
+            path = Path(item["path"]) if item.get("path") else None
+            doc = Document(
+                format=fmt,
+                path=path,
+                text=item.get("text", ""),
+                saved_text=item.get("saved_text", ""),
+                untitled_number=item.get("untitled_number", 0),
+            )
+            doc.disk_mtime = item.get("disk_mtime")
+            await self._add(doc)
+            editor = self.editor_for(doc)
+            if editor is not None:
+                try:
+                    editor.cursor_location = tuple(item.get("cursor", (0, 0)))
+                except Exception:
+                    pass
+            restored.append(doc)
+            if path is not None:
+                self.events.emit("document_opened", doc)
+        if not restored:
+            await self.new_document()
+        else:
+            self.activate(restored[min(handoff.active, len(restored) - 1)])
+        for key in handoff.snapshot_keys:
+            self.recovery.discard(key)
+
+    def request_restart(self, message: str = "Restarted.") -> None:
+        """Close this app and start a new one with the same documents open.
+
+        Plugins are loaded again from scratch, which is how installs and
+        updates take effect. Unsaved text survives; undo history does not.
+        """
+        self.restart_handoff = self.build_handoff(message)
+        self.state.session = [str(d.path.resolve()) for d in self.docs if d.path is not None]
+        self.state.save()
+        self.preview_server.close()
+        self.exit()
 
     async def shutdown(self) -> None:
         """Called by the quit command after every dirty document is settled."""

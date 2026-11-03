@@ -1,0 +1,7 @@
+id = "binder"
+name = "Binder"
+version = "1.0.0"
+requires_inkmill = ">=0.2"
+summary = "Link documents as chapters of a binder, with previous, next and related documents in front matter."
+author = "Aaron Dodd"
+license = "MIT"

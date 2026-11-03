@@ -21,6 +21,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--style", help="HTML style for --export (see --list-styles)")
     parser.add_argument("--list-styles", action="store_true", help="list HTML export styles and exit")
     parser.add_argument("--paths", action="store_true", help="show settings, plugin and state locations and exit")
+    parser.add_argument("--plugins", action="store_true", help="list plugins and whether they load, then exit")
     parser.add_argument("--no-plugins", action="store_true", help="start without loading plugins")
     return parser
 
@@ -35,6 +36,19 @@ def main(argv: list[str] | None = None) -> int:
         print(f"styles:   {config_dir() / 'styles'}")
         print(f"plugins:  {config_dir() / 'plugins'}")
         print(f"state:    {state_dir()}")
+        return 0
+
+    if args.plugins:
+        from .plugins import describe_requirement, discover, is_compatible
+
+        for item in discover():
+            version = f" {item.manifest.version}" if item.manifest else ""
+            note = ""
+            if item.error:
+                note = f"  (error: {item.error})"
+            elif item.manifest and not is_compatible(item.manifest.requires_inkmill):
+                note = f"  (needs {describe_requirement(item.manifest.requires_inkmill)})"
+            print(f"{item.name}{version}  {item.source}{note}")
         return 0
 
     if args.list_styles:
@@ -63,11 +77,28 @@ def main(argv: list[str] | None = None) -> int:
         print(target)
         return 0
 
-    from .app import InkmillApp
+    return run_app(args.files, load_plugins=not args.no_plugins)
 
-    app = InkmillApp(args.files, load_plugins=not args.no_plugins)
-    app.run()
-    return 0
+
+def run_app(files: list[Path], *, load_plugins: bool = True) -> int:
+    """Run Inkmill, starting it again in place whenever it asks to restart.
+
+    A restart (after installing or updating plugins) keeps the same Python
+    process: plugin modules are dropped from ``sys.modules`` and a new app
+    receives the open documents, unsaved text included. That works the same
+    way on Windows, Linux and Termux, where replacing the process would not.
+    """
+    from .app import InkmillApp
+    from .plugins import purge_plugin_modules
+
+    handoff = None
+    while True:
+        app = InkmillApp(files if handoff is None else (), load_plugins=load_plugins, handoff=handoff)
+        app.run()
+        handoff = app.restart_handoff
+        if handoff is None:
+            return app.return_code or 0
+        purge_plugin_modules()
 
 
 if __name__ == "__main__":

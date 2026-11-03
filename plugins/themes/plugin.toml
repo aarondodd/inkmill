@@ -1,0 +1,7 @@
+id = "themes"
+name = "Themes"
+version = "1.0.0"
+requires_inkmill = ">=0.2"
+summary = "Ten more screen themes, a gallery with live preview, and your own themes as simple TOML files."
+author = "Aaron Dodd"
+license = "MIT"

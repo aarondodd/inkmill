@@ -33,6 +33,9 @@ class Document:
     saved_text: str = ""
     id: int = field(default_factory=lambda: next(_ids))
     untitled_number: int = 0
+    # Modification time of the file when it was last read or written, used to
+    # notice changes made by other programs (a git pull, another editor).
+    disk_mtime: float | None = None
 
     @property
     def dirty(self) -> bool:
@@ -61,7 +64,24 @@ class Document:
     @classmethod
     def from_file(cls, path: Path, fmt: DocumentFormat) -> "Document":
         text = fmt.load(path) if path.exists() else ""
-        return cls(format=fmt, path=path, text=text, saved_text=text)
+        doc = cls(format=fmt, path=path, text=text, saved_text=text)
+        doc.disk_mtime = doc.current_mtime()
+        return doc
+
+    def current_mtime(self) -> float | None:
+        if self.path is None:
+            return None
+        try:
+            return self.path.stat().st_mtime
+        except OSError:
+            return None
+
+    def changed_on_disk(self) -> bool:
+        """True when the file was modified since Inkmill last read or wrote it."""
+        if self.path is None or self.disk_mtime is None:
+            return False
+        now = self.current_mtime()
+        return now is not None and now != self.disk_mtime
 
     def save(self, path: Path | None = None) -> Path:
         target = path or self.path
@@ -70,6 +90,7 @@ class Document:
         self.format.save(target, self.text)
         self.path = target
         self.saved_text = self.text
+        self.disk_mtime = self.current_mtime()
         return target
 
     def word_count(self) -> int:
