@@ -1,0 +1,14 @@
+id = "prose"
+name = "Prose Check"
+version = "1.0.0"
+requires_inkmill = ">=0.3"
+summary = "Passive voice, adverbs, filler, cliches, long sentences and more, plus readability; adds Vale's findings if you use it."
+author = "Aaron Dodd"
+license = "MIT"
+
+[[requires]]
+command = "vale"
+optional = true
+purpose = "your own Vale style rules alongside the built-in checks"
+url = "https://vale.sh/docs/install"
+install = { windows = "winget install errata-ai.Vale", macos = "brew install vale", linux = "download from https://github.com/errata-ai/vale/releases", termux = "download the linux arm64 build from https://github.com/errata-ai/vale/releases" }

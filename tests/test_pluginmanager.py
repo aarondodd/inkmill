@@ -128,15 +128,20 @@ def test_repository_index_is_current():
 def test_every_repository_plugin_installs_from_a_local_clone(tmp_path):
     source = Source("local", str(ROOT))
     entries = fetch_index(source)
-    assert {e.id for e in entries} >= {"binder", "git_sync", "word_goal"}
+    assert {e.id for e in entries} == {
+        "ai", "binder", "comments", "git_sync", "links", "outline", "pandoc", "progress", "prose",
+        "snapshots", "spelling", "templates", "themes",
+    }
     dest = tmp_path / "plugins"
     for entry in entries:
         install(entry, source, dest)
     app = InkmillApp(settings=Settings(), state=State(tmp_path / "s.json"), plugin_dir=dest)
     errors = {p.name: p.error for p in app.plugin_info if p.error}
     assert not errors, errors
-    for command in ("binder.navigator", "git_sync.commit", "word_goal.progress"):
+    for command in ("binder.navigator", "git_sync.commit", "progress.show", "spelling.check", "ai.ask"):
         assert command in app.commands
+    # Every plugin loaded together: no two commands may share a key.
+    assert app.commands.key_conflicts() == {}
 
 
 async def test_manager_screen_installs_and_restarts(tmp_path):

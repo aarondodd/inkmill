@@ -28,7 +28,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 from . import __version__
-from .plugins import MANIFEST, Manifest, is_compatible, parse_version, plugins_dir
+from .plugins import MANIFEST, Manifest, Requirement, is_compatible, parse_version, plugins_dir
 
 DEFAULT_INDEX_URL = "https://raw.githubusercontent.com/aarondodd/inkmill/main/plugins/index.json"
 INDEX_SCHEMA = 1
@@ -351,3 +351,24 @@ def build_rows(
             )
         )
     return rows
+
+
+def check_requirements(manifest: Manifest | None) -> tuple[list[Requirement], list[Requirement]]:
+    """(missing required programs, missing optional programs) for a plugin."""
+    if manifest is None:
+        return [], []
+    missing = [r for r in manifest.requires if r.found() is None]
+    return [r for r in missing if not r.optional], [r for r in missing if r.optional]
+
+
+def describe_missing(requirements: list[Requirement]) -> str:
+    lines = []
+    for req in requirements:
+        line = f"- {req.name}"
+        if req.purpose:
+            line += f", for {req.purpose}"
+        hint = req.install_hint()
+        if hint:
+            line += f"\n  Install: {hint}"
+        lines.append(line)
+    return "\n".join(lines)

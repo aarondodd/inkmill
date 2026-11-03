@@ -667,7 +667,7 @@ def register_builtins(app: "InkmillApp") -> None:
     c("file.save", "&Save", "ctrl+s", enabled=_has_doc)(save)
     c("file.save_as", "Save &As...", "f12", enabled=_has_doc)(save_as)
     c("file.save_all", "Save A&ll")(save_all)
-    c("file.revert", "Re&vert to Saved", enabled=lambda a: bool(a.active_document and a.active_document.path))(revert)
+    c("file.revert", "Rever&t to Saved", enabled=lambda a: bool(a.active_document and a.active_document.path))(revert)
     c("file.close", "&Close", "ctrl+w", enabled=_has_doc)(close_file)
     c("file.export_html", "&Export HTML...", enabled=_has_doc)(export_html)
     c("file.export", "Export As...", enabled=_has_doc)(export_as)
@@ -723,6 +723,8 @@ def register_builtins(app: "InkmillApp") -> None:
     c("view.page_width", "&Page Width...")(page_width)
     c("view.settings", "Settings &File...")(open_settings)
     c("view.palette", "&Command Palette...", "ctrl+p")(lambda a: a.action_command_palette())
+    c("view.panel_focus", "Switch to Side Pan&el", "ctrl+t", description="Move between the text and the side panel")(lambda a: a.toggle_panel_focus())
+    c("view.panel_close", "Close Si&de Panel", enabled=lambda a: a.panel.visible)(lambda a: a.hide_panel())
     c("view.plugins", "Pl&ugins...", description="Install, update and remove plugins")(plugin_manager)
     c("app.restart", "Restart Inkmill", description="Reload plugins; open documents stay open")(restart)
 
@@ -756,6 +758,7 @@ def register_builtins(app: "InkmillApp") -> None:
     ]))
     app.menus.add_menu(Menu("view", "&View", [
         M("view.theme"), M("view.menu_bar"), M("view.status_bar"), M("view.wrap"), M("view.page_width"), S(),
+        M("view.panel_focus"), M("view.panel_close"), S(),
         M("view.palette"), M("view.plugins"), M("view.settings"),
     ]))
     app.events.on("ready", check_plugin_updates)

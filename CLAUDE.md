@@ -85,18 +85,53 @@ two plugins, Git Sync and a chapter/related-documents plugin (named Binder).
   defaults; not yet tried in his terminals (Alt+PgUp/PgDn/Up may not pass
   through everywhere).
 
+## Writer plugins (0.3.0)
+
+Aaron accepted every proposed writer plugin (2026-11-03) and asked for
+dependency checks at install. Built as 10 new plugins plus Binder 1.1, with
+core APIs they share: SidePanel (`#main` horizontal row, not docked;
+`_repaint_editors` after open/close because TextArea re-wraps but keeps
+painting the old wrap), decorations (`InkEditor.set_decorations`, char
+columns converted to UTF-8 byte offsets; styles re-applied in
+`InkEditor.on_mount` because before mount the editor cannot see plugin
+styles), `api.markdown_extension` (registry cleared at app init),
+`api.provide`/`api.service`, events `document_changed` and `panel_closed`,
+and manifest `[[requires]]` (`command` or `any_of`, `optional`, per-platform
+`install`).
+
+- Spelling bundles a SCOWL en_US list (aspell-en dump, 123,692 words, 322 KB
+  gz; license file alongside). `.gitattributes` marks `plugins/**/*.gz`
+  binary, since `plugins/**` is forced to LF. Thesaurus is online
+  (Datamuse); no offline thesaurus data was available.
+- Menus: Binder moved to its own "B&inder" menu (Alt+I) because Alt+B is Go
+  Back; Comments has "&Review" (Alt+R); AI has "&AI" (Alt+A).
+  `test_menu_accelerators_are_unique` guards letters in every menu.
+- Keys added: Ctrl+F2 spell, Alt+F1 thesaurus, F8 outline, Ctrl+F5
+  snapshot, Ctrl+F8 progress, Alt+J journal, Alt+C comment, Alt+L follow
+  link, Alt+Left link back, Ctrl+T panel. `key_conflicts()` is asserted
+  empty with every plugin loaded.
+- Manuscript DOCX: pandoc's default reference.docx with styles.xml and the
+  sectPr rewritten by regex; no running header (Surname / Title / page),
+  which would need a header part.
+- AI: stdlib urllib SSE for Anthropic Messages and OpenAI chat
+  completions; default model claude-sonnet-5-5; keys in env or
+  `<config>/ai/<provider>.key` (0600), never settings.toml; per-host consent
+  stored in settings. Tested against a local fake server only.
+- Word Goal moved back to `examples/plugins/word_goal/` (Progress replaces it).
+
 ## Status
 
 - 0.1.0 committed and pushed 2026-11-02. 52 tests pass (pytest with
   Textual's pilot), green in CI on ubuntu, windows and macos with 3.11 and
   3.13.
-- 0.2.0 (plugin manager, Binder, Git Sync) on branch `plugin-manager-0.2`,
-  one PR at Aaron's request; 86 tests locally. Awaiting his testing.
+- 0.2.0 (plugin manager, Binder, Git Sync, Themes) merged by Aaron as PR #1.
+- 0.3.0 (writer plugins) on branch `writer-plugins-0.3`, one PR at Aaron's
+  request. Awaiting his testing.
 - Not yet exercised by a human on Windows Terminal or Termux. L-2026-07-19-001
   applies: verify there before calling it done.
 
 ## Ideas not built yet
 
-Spell check, typewriter scrolling, word goal in core (the word_goal plugin
-exists), EPUB/ODT/DOCX exporters (plugin-shaped), an outline/heading
-navigator, and autosave-to-file as an option beside crash recovery.
+Typewriter scrolling and focus mode, autosave-to-file beside crash
+recovery, a running header for the manuscript DOCX, an offline thesaurus,
+and dictionaries for languages other than US English.

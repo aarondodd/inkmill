@@ -55,12 +55,77 @@ class InkEditor(TextArea):
         self.indent_type = "spaces"
         self.indent_width = 4
         self.return_stack: list[Location] = []
+        # Plugin highlights: owner -> [(start, end, style name)], in
+        # (row, column) character locations.
+        self._decorations: dict[str, list[tuple[Location, Location, str]]] = {}
 
     def apply_syntax_theme(self, theme) -> None:
         from ..themes import syntax_theme
 
-        self.register_theme(syntax_theme(theme))
+        styles = getattr(self.app, "decoration_styles", {}) if self.is_attached else {}
+        self.register_theme(syntax_theme(theme, styles))
         self.theme = "inkmill"
+
+    def on_mount(self) -> None:
+        # Highlight styles registered by plugins are only reachable once the
+        # editor is attached to the app.
+        self.apply_syntax_theme(self.app.current_theme)
+
+    # -- decorations -------------------------------------------------------
+
+    def set_decorations(self, owner: str, ranges: list[tuple[Location, Location, str]]) -> None:
+        """Replace ``owner``'s highlighted ranges, each (start, end, style name).
+
+        Style names must be registered with ``api.decoration_style``. Ranges
+        are not moved by later edits; owners recompute them, usually on the
+        ``document_changed`` event.
+        """
+        if ranges:
+            self._decorations[owner] = list(ranges)
+        else:
+            self._decorations.pop(owner, None)
+        self._build_highlight_map()
+        self.refresh()
+
+    def clear_decorations(self, owner: str) -> None:
+        self.set_decorations(owner, [])
+
+    def decorations(self, owner: str) -> list[tuple[Location, Location, str]]:
+        return list(self._decorations.get(owner, []))
+
+    def _build_highlight_map(self) -> None:
+        super()._build_highlight_map()
+        if not getattr(self, "_decorations", None):
+            return
+        highlights = self._highlights
+        document = self.document
+        line_count = document.line_count
+        byte_cache: dict[int, list[int]] = {}
+
+        def byte_offset(row: int, column: int) -> int:
+            offsets = byte_cache.get(row)
+            if offsets is None:
+                line = document.get_line(row)
+                offsets = [0]
+                total = 0
+                for ch in line:
+                    total += len(ch.encode("utf-8"))
+                    offsets.append(total)
+                byte_cache[row] = offsets
+            return offsets[min(max(column, 0), len(offsets) - 1)]
+
+        for ranges in self._decorations.values():
+            for (r1, c1), (r2, c2), name in ranges:
+                if r1 >= line_count:
+                    continue
+                r2 = min(r2, line_count - 1)
+                if r1 == r2:
+                    highlights[r1].append((byte_offset(r1, c1), byte_offset(r1, c2), name))
+                    continue
+                highlights[r1].append((byte_offset(r1, c1), None, name))
+                for row in range(r1 + 1, r2):
+                    highlights[row].append((0, None, name))
+                highlights[r2].append((0, byte_offset(r2, c2), name))
 
     # -- offsets ---------------------------------------------------------
 

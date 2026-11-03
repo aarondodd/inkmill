@@ -1,6 +1,8 @@
 """Example Inkmill plugin: a session word goal.
 
-Install it from View > Plugins. It adds a "Tools" menu with two commands:
+Copy this folder into your plugins folder (inkmill --paths) to try it. It adds
+a "Tools" menu with two commands. The Progress plugin supersedes it; it stays
+here as the smallest complete plugin example.
 
 * Set Word Goal... asks for a number of words to write this session.
 * Goal Progress (Ctrl+F8) shows how far along you are.

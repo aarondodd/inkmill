@@ -295,13 +295,19 @@ PHOSPHOR = _theme(
 BUILTIN_THEMES: tuple[Theme, ...] = (WORDPERFECT, GRINDER, PAPER, AMBER, PHOSPHOR)
 
 
-def syntax_theme(theme: Theme) -> TextAreaTheme:
+def syntax_theme(theme: Theme, decorations: dict | None = None) -> TextAreaTheme:
     """Markdown highlighting colors for the editor, derived from a screen theme.
 
     Only syntax colors are set; the background, cursor and selection keep
     following the stylesheet, so they always match the screen theme.
     """
     v = {**derive_variables(theme), **theme.variables}
+    extra: dict[str, Style] = {}
+    for name, style in (decorations or {}).items():
+        try:
+            extra[name] = style(v) if callable(style) else style
+        except Exception:
+            continue
     heading = v["im-heading"]
     dim = v["im-dim"]
     mark = v["im-mark"]
@@ -317,5 +323,6 @@ def syntax_theme(theme: Theme) -> TextAreaTheme:
             "punctuation.delimiter": Style(color=dim),
             "punctuation.special": Style(color=dim),
             "string.escape": Style(color=dim),
+            **extra,
         },
     )

@@ -17,7 +17,7 @@ from typing import Any, Callable, Iterable
 
 from textual.app import App, ComposeResult, SystemCommand
 from textual.binding import Binding
-from textual.containers import Container
+from textual.containers import Container, Horizontal
 from textual.screen import Screen
 from textual.timer import Timer
 from textual.widgets import ContentSwitcher, TextArea
@@ -36,6 +36,7 @@ from .system import PreviewServer
 from .themes import BUILTIN_THEMES, VARIABLE_DEFAULTS, derive_variables
 from .widgets.editor import InkEditor
 from .widgets.menubar import MenuScreen, MenuStrip
+from .widgets.panel import NARROW, SidePanel
 from .widgets.statusbar import StatusBar
 
 log = logging.getLogger("inkmill")
@@ -64,7 +65,9 @@ class InkmillApp(App):
     Screen { color: $foreground; layers: base overlay; }
     #menubar { dock: top; display: none; }
     #menubar.-pinned { display: block; }
-    #page { width: 100%; height: 1fr; align-horizontal: center; }
+    #main { height: 1fr; }
+    #page { width: 1fr; height: 100%; align-horizontal: center; }
+    #main.-panel-full > #page { display: none; }
     #editors { width: 100%; height: 100%; }
     Toast { background: $im-dialog-bg; color: $im-dialog-fg; }
     """
@@ -87,6 +90,11 @@ class InkmillApp(App):
         self.restart_handoff: Handoff | None = None
         self.events = EventBus(self)
         self.status_segments: list[Callable[["InkmillApp"], str | None]] = []
+        self.services: dict[str, Any] = {}
+        self.decoration_styles: dict[str, Any] = {}
+        from .export.markdown import clear_extensions
+
+        clear_extensions()  # plugins register theirs again below
         self.plugin_dir = plugin_dir
         self.settings = settings or Settings.load()
         self.state = state or State()
@@ -158,6 +166,9 @@ class InkmillApp(App):
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
         if action == "open_menu":
+            # Esc inside the side panel closes the panel instead.
+            if self.screen_stack and self.panel_has_focus() and parameters == ():
+                return False
             return self.on_main_screen()
         if action == "command":
             command = self.commands.get(str(parameters[0])) if parameters else None
@@ -175,8 +186,10 @@ class InkmillApp(App):
 
     def compose(self) -> ComposeResult:
         yield MenuStrip(list(self.menus), id="menubar", hint=self.menu_hint())
-        with Container(id="page"):
-            yield ContentSwitcher(id="editors")
+        with Horizontal(id="main"):
+            with Container(id="page"):
+                yield ContentSwitcher(id="editors")
+            yield SidePanel(id="panel")
         yield StatusBar(id="status")
 
     async def on_mount(self) -> None:
@@ -221,6 +234,72 @@ class InkmillApp(App):
         switcher.styles.max_width = width + 2 if width > 0 else None
         for editor in self.query(InkEditor):
             editor.soft_wrap = self.settings.soft_wrap
+
+    # -- side panel --------------------------------------------------------
+
+    @property
+    def panel(self) -> SidePanel:
+        base = self.screen_stack[0] if self.screen_stack else self.screen
+        return base.query_one(SidePanel)
+
+    def panel_has_focus(self) -> bool:
+        try:
+            return self.panel.visible and self.panel.contains_focus()
+        except Exception:
+            return False
+
+    async def show_panel(self, widget, *, title: str, owner: str, hint: str = "", focus: bool = True) -> None:
+        await self.panel.show(widget, title, owner, hint, focus=focus)
+        self.call_after_refresh(self._repaint_editors)
+
+    def hide_panel(self) -> None:
+        panel = self.panel
+        if panel.visible:
+            owner = panel.owner
+            panel.hide()
+            editor = self.active_editor
+            if editor is not None:
+                editor.focus()
+            self.call_after_refresh(self._repaint_editors)
+            self.events.emit("panel_closed", owner)
+
+    def _repaint_editors(self) -> None:
+        # The editors change width when the panel opens or closes. TextArea
+        # re-wraps on resize but can keep painting the old lines, so wrap and
+        # repaint explicitly once the new layout is in place.
+        for editor in self.query(InkEditor):
+            editor._rewrap_and_refresh_virtual_size()
+            editor.refresh()
+
+    def toggle_panel_focus(self) -> None:
+        panel = self.panel
+        if not panel.visible:
+            self.status.flash("The side panel is closed.")
+            return
+        if panel.contains_focus():
+            editor = self.active_editor
+            if editor is not None:
+                editor.focus()
+        else:
+            panel.focus_content()
+
+    def on_resize(self, event) -> None:
+        try:
+            self.panel.set_narrow(event.size.width < NARROW)
+        except Exception:
+            pass
+
+    def on_key(self, event) -> None:
+        if event.key == "escape" and self.panel_has_focus():
+            event.stop()
+            self.hide_panel()
+
+    def refresh_editor_styles(self) -> None:
+        """Re-apply highlight styles after a plugin registers a new one."""
+        if not self.screen_stack:
+            return
+        for editor in self.query(InkEditor):
+            editor.apply_syntax_theme(self.current_theme)
 
     @property
     def status(self) -> StatusBar:
@@ -500,6 +579,7 @@ class InkmillApp(App):
             return
         self._words = doc.word_count()
         status.set_right(f"{self._segments}{self._words:,} words  {self._position}")
+        self.events.emit("document_changed", doc)
 
     # -- menus and commands ----------------------------------------------
 

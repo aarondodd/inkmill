@@ -1,0 +1,7 @@
+id = "outline"
+name = "Outline"
+version = "1.0.0"
+requires_inkmill = ">=0.3"
+summary = "The document's headings in a side panel: jump to one, move whole sections, promote and demote."
+author = "Aaron Dodd"
+license = "MIT"

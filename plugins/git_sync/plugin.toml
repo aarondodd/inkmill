@@ -1,8 +1,13 @@
 id = "git_sync"
 name = "Git Sync"
-version = "1.0.0"
+version = "1.1.0"
 requires_inkmill = ">=0.2"
 summary = "Commit, pull and push the git repository the current document lives in."
 author = "Aaron Dodd"
 license = "MIT"
-external = ["git"]
+
+[[requires]]
+command = "git"
+purpose = "every Git Sync command"
+url = "https://git-scm.com/downloads"
+install = { windows = "winget install Git.Git", macos = "xcode-select --install (or brew install git)", linux = "sudo apt install git (or your distribution's package)", termux = "pkg install git openssh" }

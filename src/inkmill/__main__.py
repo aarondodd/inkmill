@@ -49,6 +49,11 @@ def main(argv: list[str] | None = None) -> int:
             elif item.manifest and not is_compatible(item.manifest.requires_inkmill):
                 note = f"  (needs {describe_requirement(item.manifest.requires_inkmill)})"
             print(f"{item.name}{version}  {item.source}{note}")
+            for req in item.manifest.requires if item.manifest else []:
+                if req.found() is None:
+                    kind = "optional" if req.optional else "required"
+                    hint = req.install_hint()
+                    print(f"    missing {kind} program {req.name}" + (f"; install: {hint}" if hint else ""))
         return 0
 
     if args.list_styles:

@@ -5,8 +5,11 @@ A plugin is a Python package with a `register(api)` function and a
 `PluginAPI` object, and everything the plugin adds goes through that object.
 
 The plugins that ship with Inkmill live in the repository's `plugins/`
-folder and are working examples: `word_goal` is the smallest, `binder` and
-`git_sync` use most of the API.
+folder and are working examples. `examples/plugins/word_goal` is the
+smallest complete plugin. `outline` shows the side panel, `spelling` editor
+highlights, `comments` and `links` Markdown export extensions and services,
+`binder` a service other plugins use, and `git_sync` and `pandoc` outside
+programs.
 
 ## Layout and manifest
 
@@ -26,8 +29,26 @@ requires_inkmill = ">=0.2"       # any PEP 440 specifier, e.g. ">=0.2,<1"
 summary = "One line for the plugin list."
 author = "Your Name"
 license = "MIT"
-external = ["pandoc"]            # optional: commands it needs; shown as found or not found
+
+[[requires]]                     # an outside program the plugin uses
+command = "pandoc"
+purpose = "every export and import"
+url = "https://pandoc.org/installing.html"
+install = { windows = "winget install JohnMacFarlane.Pandoc", macos = "brew install pandoc", linux = "sudo apt install pandoc", termux = "pkg install pandoc" }
+
+[[requires]]
+any_of = ["typst", "weasyprint", "xelatex"]   # any one of these will do
+optional = true                               # the plugin works without it, with less
+purpose = "PDF export"
 ```
+
+`[[requires]]` entries are checked when the plugin is installed: View >
+Plugins lists each program as found or not found with the install command
+for the user's platform, and installing a plugin whose required program is
+missing asks first. `inkmill --plugins` reports missing programs too. A
+plugin still loads without them, so its commands should check
+(`shutil.which`) and explain what to install. The older `external =
+["git"]` list is read as required programs without install hints.
 
 `requires_inkmill` is checked twice: View > Plugins will not install a
 plugin the running Inkmill cannot run, and the loader skips one copied in by
@@ -114,6 +135,7 @@ session.
 
 ## Events
 
+
 ```python
 @api.on("document_saved")
 def saved(app, doc):
@@ -128,6 +150,8 @@ def saved(app, doc):
 | `document_saved` | `doc` | After a successful save |
 | `document_closed` | `doc` | After a document was closed |
 | `document_reloaded` | `doc` | Inkmill re-read a file another program changed |
+| `document_changed` | `doc` | The active document was edited; sent once typing pauses (about half a second) |
+| `panel_closed` | `owner` | The side panel closed; `owner` is the plugin that filled it |
 | `file_moved` | `old`, `new` | List Files moved or renamed a file |
 | `file_deleted` | `path` | List Files deleted a file |
 
@@ -147,6 +171,88 @@ status line is fully refreshed (switching documents, saving) and when you
 call `api.refresh_status()`. Keep the function cheap: do slow work (a
 subprocess, reading many files) elsewhere, cache it, then call
 `refresh_status()`. `git_sync` shows the pattern.
+
+## The side panel
+
+```python
+from textual.widgets import OptionList
+
+@api.command("notes.show", "&Notes", "f7", menu="document")
+async def show(app):
+    if api.owns_panel:
+        api.hide_panel()
+        return
+    widget = OptionList(*["first", "second"])
+    await api.show_panel(widget, "Notes", hint="Enter go  Ctrl+T text  Esc close")
+```
+
+`api.show_panel(widget, title, hint)` puts any Textual widget in the panel
+on the right, replacing what was there, and focuses it. `api.owns_panel`
+says whether yours is showing, `api.hide_panel()` closes it, and
+`app.panel.set_title(text)` updates the title. Ctrl+T moves the focus
+between the text and the panel and Esc closes it; handle other keys in your
+widget. Clean up on the `panel_closed` event.
+
+## Highlighting text
+
+```python
+from rich.style import Style
+
+api.decoration_style("notes.mark", lambda v: Style(underline=True, color=v["im-mark"]))
+
+@api.on("document_changed")
+def mark(app, doc):
+    editor = app.active_editor
+    ranges = [((0, 0), (0, 5), "notes.mark")]      # (start, end, style) as (row, column)
+    editor.set_decorations("notes", ranges)
+```
+
+`api.decoration_style(name, style)` registers a style; pass a function of
+the theme's variables (`im-heading`, `im-mark`, `im-dim`, ...) so it follows
+the screen theme. `editor.set_decorations(owner, ranges)` replaces your
+ranges; `editor.clear_decorations(owner)` removes them. Ranges do not move
+with later edits, so recompute them on `document_changed`. Use
+`editor.location_of(index)` to turn a character offset into (row, column).
+
+`inkmill.markup.mask_non_prose(text)` returns the text with front matter,
+code, links, URLs and HTML blanked out but every position unchanged, which
+is what you want before searching prose with a regular expression.
+
+## Markdown export
+
+```python
+def extend(md):                        # md is a markdown_it.MarkdownIt
+    md.inline.ruler.before("link", "mention", my_rule)
+
+api.markdown_extension(extend)
+```
+
+The function runs whenever Inkmill builds its Markdown parser for HTML
+export and preview. `links` adds a wikilink inline rule; `comments`
+rewrites the source in a core rule.
+
+## Services
+
+One plugin can offer an object to the others:
+
+```python
+api.provide("binder", BinderService())     # in Binder
+
+binder = api.service("binder")             # anywhere else; None if Binder is not installed
+if binder is not None:
+    chapters = binder.chapters(binder.binder_for(doc.path))
+```
+
+Always handle `None`, since the user may not have the other plugin. The
+bundled services are `binder` (`binder_for`, `title`, `chapters`, `read`,
+`manuscript_markdown`, `research`, `project`, `set_field`), `comments`
+(`final`, `original`, `marks`) and `links` (`plain`, `find`).
+
+## Opening things
+
+`inkmill.system.open_url(url)` opens a web address in the browser and
+`inkmill.system.open_file(path)` opens a file in its usual app, on every
+platform Inkmill runs on, Termux included.
 
 ## Blocking work
 
