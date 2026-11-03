@@ -2,4 +2,5 @@
 # every checkout (including Windows with core.autocrlf) so a local clone used
 # as an offline plugin source verifies.
 plugins/** text eol=lf
+plugins/**/*.gz binary
 *.png binary

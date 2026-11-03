@@ -1,0 +1,7 @@
+id = "links"
+name = "Links"
+version = "1.0.0"
+requires_inkmill = ">=0.3"
+summary = "[[Wikilinks]] between notes, following any link under the cursor, backlinks, and a note picker."
+author = "Aaron Dodd"
+license = "MIT"

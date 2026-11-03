@@ -70,6 +70,7 @@ ones added by plugins.
 | Ctrl+F7 | Footnote | Alt+B | Back from a footnote |
 | Ctrl+\\ | Tidy the table under the cursor | Ctrl+D | Toggle a task's checkbox |
 | Ctrl+F / F3 | Find / find next | Ctrl+R | Replace |
+| Ctrl+T | Between the text and the side panel | Ctrl+P | Command palette |
 | Ctrl+G | Go to line, or page:line | F9 | Preview in browser |
 
 Ctrl+I is missing on purpose: most terminals send it as Tab.
@@ -225,12 +226,36 @@ you trust.
 
 | Plugin | What it does |
 |--------|--------------|
-| [Binder](plugins/binder/README.md) | Chapters of a long work as separate documents: a binder (parent) holds the order, chapters link to it, and any document can list related ones. Alt+F5 shows them; Alt+PgUp/PgDn move between chapters; the whole binder exports as one manuscript. |
-| [Git Sync](plugins/git_sync/README.md) | Commit the current document with a message (Ctrl+F12), pull and push the repository it lives in. Works with whatever repository holds each document; needs `git`. |
-| [Themes](plugins/themes/README.md) | Ten more screen themes (DOS-era editors and file managers, minimal writing apps, sepia, e-ink, high contrast), a gallery that previews each one on your document as you move through it, and your own themes as small TOML files that apply on save. |
-| [Word Goal](plugins/word_goal/README.md) | A word target for this session with a progress bar. |
+| [Spelling & Thesaurus](plugins/spelling/README.md) | Spell check one word at a time (Ctrl+F2), unknown words underlined as you write, and synonyms for the word under the cursor (Alt+F1). Offline US English dictionary plus your own lists. |
+| [Prose Check](plugins/prose/README.md) | Passive voice, adverbs, filler, wordy phrases, cliches, repeated words and long sentences, with readability numbers, in the side panel. Adds Vale's findings if you use Vale. |
+| [Outline](plugins/outline/README.md) | The document's headings in the side panel (F8): jump, move whole sections, promote and demote. |
+| [Binder](plugins/binder/README.md) | Long work as separate documents: a binder holds the chapter order, chapters link to it, research sits beside it. Alt+F5 lists everything; Binder Outline shows status, words and synopsis per chapter; the whole binder exports as one manuscript. |
+| [Links](plugins/links/README.md) | `[[Wikilinks]]` between notes, Follow Link (Alt+L) for any link under the cursor, Link Back, and backlinks. |
+| [Comments & Track Changes](plugins/comments/README.md) | Comments and suggested insertions, deletions and replacements as CriticMarkup, with a review list to accept or reject them. |
+| [Snapshots](plugins/snapshots/README.md) | Named versions without git (Ctrl+F5): compare word by word, restore, or open a copy. |
+| [Progress](plugins/progress/README.md) | Words written today against a goal, streaks, timed sprints, and the pace needed to meet a deadline (Ctrl+F8). |
+| [Templates & Journal](plugins/templates/README.md) | New documents from templates (chapter, scene card, character, query letter, your own) and a daily journal page (Alt+J). |
+| [Export via Pandoc](plugins/pandoc/README.md) | DOCX, standard manuscript format, ODT, EPUB, PDF, RTF and LaTeX, for a document or a whole binder; import from Word and others. Needs pandoc. |
+| [AI Assistant](plugins/ai/README.md) | Opt-in feedback, rewrites, synopses and a continuity check across a binder, from Claude, a local Ollama model or any OpenAI-compatible server. Replies never change your text unless you say so. |
+| [Git Sync](plugins/git_sync/README.md) | Commit the current document with a message (Ctrl+F12), pull and push the repository it lives in. Needs git. |
+| [Themes](plugins/themes/README.md) | Ten more screen themes, a gallery that previews each one on your document, and your own themes as small TOML files. |
 
-![The Binder list](docs/screenshots/binder.png)
+Plugins that use another program (git, pandoc, Vale) say so in View >
+Plugins, with install instructions for your platform. Installing one whose
+program is missing asks first, and its commands explain what to install
+until you do.
+
+### The side panel
+
+Outline, Prose Check, Review Changes, Backlinks and the AI Assistant show
+their results in a panel on the right, which stays closed until you ask for
+one. Ctrl+T moves between the text and the panel, and Esc in the panel
+closes it. On a screen narrower than 90 columns the panel takes the whole
+width while it is open.
+
+![The Binder outline](docs/screenshots/binder-outline.png)
+
+![Prose Check in the side panel](docs/screenshots/prose.png)
 
 ![The Theme Gallery](docs/screenshots/themes.png)
 

@@ -28,7 +28,7 @@ PLUGINS = ROOT / "plugins"
 INDEX = PLUGINS / "index.json"
 SKIP_DIRS = {"__pycache__", ".pytest_cache"}
 SKIP_SUFFIXES = {".pyc", ".pyo"}
-FIELDS = ("id", "name", "version", "requires_inkmill", "summary", "author", "license", "homepage", "external")
+FIELDS = ("id", "name", "version", "requires_inkmill", "summary", "author", "license", "homepage", "external", "requires")
 
 
 def plugin_files(folder: Path) -> dict[str, str]:

@@ -102,7 +102,17 @@ class NavigatorScreen(Dialog):
         if links.related:
             options.append(self._heading("Related"))
             options += [self._row(p, "") for p in links.related]
+        holder = links if links.is_binder else pos.binder_links
+        if holder is not None and (holder.research or holder.research_urls):
+            options.append(self._heading("Research"))
+            for item in holder.research:
+                label = item.name + "/" if item.is_dir() else ""
+                options.append(self._row(item, label))
+            for url in holder.research_urls:
+                options.append(Option(Text("  " + url), id=f"url|{url}"))
         known = {str(p) for _, p in links.all()} | ({str(pos.binder)} if pos.binder else set())
+        if holder is not None:
+            known |= {str(p) for p in holder.research}
         if pos.binder_links:
             known |= {str(p) for p in pos.binder_links.contents}
         incoming = [(rel, p) for rel, p in model.backlinks(self.path, self.read) if str(p) not in known]
@@ -133,6 +143,8 @@ class NavigatorScreen(Dialog):
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         if event.option.id and event.option.id.startswith("go|"):
             self.dismiss(event.option.id.removeprefix("go|"))
+        elif event.option.id and event.option.id.startswith("url|"):
+            self.dismiss(event.option.id)
 
     def on_key(self, event: events.Key) -> None:
         if event.character not in ("[", "]"):

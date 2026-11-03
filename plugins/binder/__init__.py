@@ -1,14 +1,19 @@
-"""Binder: link documents into chapters, a parent document and related notes.
+"""Binder: chapters, an overall document, related notes and research.
 
-Links live in each document's front matter (see ``model.py``). Commands land
-in the Document menu:
+Links live in each document's front matter (see ``model.py``). Commands are
+in the Binder menu (Alt+I):
 
-* Binder... (Alt+F5) shows the binder, neighbors, related and linking
-  documents, and opens any of them with Enter.
+* Binder... (Alt+F5) shows the binder, neighbors, related, research and
+  linking documents, and opens any of them with Enter.
+* Binder Outline... shows every chapter with its status, words, target and
+  synopsis, and edits them in place.
 * Previous / Next Chapter (Alt+PageUp / Alt+PageDown) and Up to Binder
   (Alt+Up) jump without the list.
-* Link Document..., Remove Link..., New Next Chapter..., New Binder
-  Document..., Check Links, Export and Preview Manuscript.
+* Set Status, Set Synopsis, Link Document, Remove Link, New Next Chapter,
+  New Binder Document.
+* New Research Note, Clip Web Page and Add Research keep research beside the
+  work without making it part of the manuscript.
+* Check Links, Preview and Export Manuscript.
 """
 
 from __future__ import annotations
@@ -21,16 +26,18 @@ from inkmill.formats import write_text
 from inkmill.screens.dialogs import ChoiceDialog, ConfirmDialog, InputDialog, TextDialog
 from inkmill.screens.files import FileManagerScreen
 
-from . import model
+from . import clip, model
 from .navigator import NavigatorScreen
+from .outline import BinderOutlineScreen
 
 RELATION_LABELS = {
     "parent": "Binder (parent document)",
     "previous": "Previous document",
     "next": "Next document",
     "related": "Related document",
+    "research": "Research (for this document's binder)",
 }
-BACK_RELATION = {"parent": "contents", "previous": "next", "next": "previous", "related": "related"}
+BACK_RELATION = {"parent": "contents", "previous": "next", "next": "previous", "related": "related", "research": None}
 
 
 def register(api):
@@ -94,32 +101,92 @@ def register(api):
             return
         await app.open_path(path)
 
+    async def open_item(item: str) -> None:
+        """Open what the navigator picked: a document, folder, other file or web address."""
+        if item.startswith("url|"):
+            from inkmill.system import open_url
+
+            try:
+                open_url(item.removeprefix("url|"))
+            except RuntimeError as exc:
+                app.notify(str(exc), severity="warning")
+            return
+        path = Path(item)
+        if path.is_dir():
+            picked = await app.push_screen_wait(FileManagerScreen("open", path))
+            for chosen in picked or []:
+                await app.open_path(chosen)
+            return
+        if path.exists() and path.suffix.lower() not in model.DOC_SUFFIXES:
+            from inkmill.system import open_file
+
+            try:
+                open_file(path)
+            except RuntimeError as exc:
+                app.notify(str(exc), severity="warning")
+            return
+        await open_doc(path, "document")
+
+    def statuses() -> list[str]:
+        custom = api.settings.get("statuses")
+        return [str(s) for s in custom] if isinstance(custom, list) and custom else list(model.STATUSES)
+
     # -- commands ------------------------------------------------------------
 
-    @api.command("binder.navigator", "&Binder...", "alt+f5", menu="document", separator=True,
+    api.add_menu("binder", "B&inder")
+
+    @api.command("binder.navigator", "&Binder...", "alt+f5", menu="binder",
                  enabled=has_path, description="Show and open linked documents")
     async def navigator(app):
         path, _ = links_here()
         chosen = await app.push_screen_wait(NavigatorScreen(path, read, write))
         if chosen:
-            await open_doc(Path(chosen), "document")
+            await open_item(chosen)
 
-    @api.command("binder.previous", "Pre&vious Chapter", "alt+pageup", menu="document", enabled=has_path)
+    @api.command("binder.outline", "Binder &Outline...", menu="binder", enabled=lambda a: in_binder(a),
+                 description="Every chapter with status, words, target and synopsis")
+    async def outline(app):
+        holder = binder_for(current_path())
+        chosen = await app.push_screen_wait(BinderOutlineScreen(holder, read, write, statuses(), _pace))
+        api.refresh_status()
+        if chosen:
+            await open_doc(Path(chosen), "chapter")
+
+    @api.command("binder.previous", "Pre&vious Chapter", "alt+pageup", menu="binder", enabled=has_path)
     async def previous(app):
         _, links = links_here()
         await open_doc(model.position(links, read).previous, "previous chapter")
 
-    @api.command("binder.next", "Ne&xt Chapter", "alt+pagedown", menu="document", enabled=has_path)
+    @api.command("binder.next", "Ne&xt Chapter", "alt+pagedown", menu="binder", enabled=has_path)
     async def next_chapter(app):
         _, links = links_here()
         await open_doc(model.position(links, read).next, "next chapter")
 
-    @api.command("binder.parent", "&Up to Binder", "alt+up", menu="document", enabled=has_path)
+    @api.command("binder.parent", "&Up to Binder", "alt+up", menu="binder", enabled=has_path)
     async def parent(app):
         _, links = links_here()
         await open_doc(links.parents[0] if links.parents else None, "binder for this document")
 
-    @api.command("binder.link", "&Link Document...", menu="document", enabled=has_path)
+    @api.command("binder.status", "Set &Status...", menu="binder", separator=True, enabled=has_path,
+                 description="Idea, outline, draft, revised, final, or your own list")
+    async def set_status(app):
+        path, _ = links_here()
+        current = model.field_value(read(path), "status")
+        items = [(s, s) for s in statuses()] + [("", "(none)")]
+        choice = await app.push_screen_wait(ChoiceDialog(f"Status: {path.name}", items, current))
+        if choice is not None:
+            write(path, model.set_field(read(path) or "", "status", choice or None))
+            app.status.flash(f"Status: {choice or 'none'}")
+
+    @api.command("binder.synopsis", "Set S&ynopsis...", menu="binder", enabled=has_path)
+    async def set_synopsis(app):
+        path, _ = links_here()
+        current = model.field_value(read(path), "synopsis")
+        answer = await app.push_screen_wait(InputDialog(f"Synopsis: {path.name}", "One or two sentences:", current))
+        if answer is not None:
+            write(path, model.set_field(read(path) or "", "synopsis", answer.strip() or None))
+
+    @api.command("binder.link", "&Link Document...", menu="binder", separator=True, enabled=has_path)
     async def link(app):
         path, links = links_here()
         relation = await app.push_screen_wait(ChoiceDialog("Link Document", list(RELATION_LABELS.items()), prompt="This document's:"))
@@ -132,6 +199,14 @@ def register(api):
         if relation in ("previous", "next", "parent"):
             targets = targets[:1]
         if not targets:
+            return
+        if relation == "research":
+            holder = binder_for(path) or path
+            text = read(holder) or ""
+            for target in targets:
+                text = model.add_relation(text, holder, "research", target)
+            write(holder, text)
+            app.status.flash(f"Added {len(targets)} research item(s) to {holder.name}.")
             return
         text = read(path) or ""
         for target in targets:
@@ -151,11 +226,12 @@ def register(api):
         app.status.flash(f"Linked {names} as {RELATION_LABELS[relation].lower()}.")
         api.refresh_status()
 
-    @api.command("binder.unlink", "Remove Lin&k...", menu="document", enabled=has_path)
+    @api.command("binder.unlink", "Remove Lin&k...", menu="binder", enabled=has_path)
     async def unlink(app):
         path, links = links_here()
         items = [(f"{rel}|{target}", f"{rel:<9} {model.title_of(target, read(target))}  ({model.relref(path, target)})")
                  for rel, target in links.all()]
+        items += [(f"research|{url}", f"research  {url}") for url in links.research_urls]
         if not items:
             app.status.flash("This document has no links.")
             return
@@ -164,6 +240,10 @@ def register(api):
             return
         relation, _, target_s = choice.partition("|")
         target = Path(target_s)
+        if relation == "research":
+            write(path, model.remove_relation(read(path) or "", path, relation, target))
+            app.status.flash("Research link removed.")
+            return
         write(path, model.remove_relation(read(path) or "", path, relation, target))
         back = BACK_RELATION.get(relation, "parent" if relation == "contents" else None)
         if back and target.exists():
@@ -175,7 +255,7 @@ def register(api):
         app.status.flash("Link removed.")
         api.refresh_status()
 
-    @api.command("binder.new_next", "New Next C&hapter...", menu="document", enabled=has_path,
+    @api.command("binder.new_next", "New Next C&hapter...", menu="binder", enabled=has_path,
                  description="Create the next document and link it in place")
     async def new_next(app):
         path, links = links_here()
@@ -209,7 +289,7 @@ def register(api):
         await app.open_path(target)
         app.status.flash(f"Created {target.name}.")
 
-    @api.command("binder.create", "New Binder &Document...", menu="document", enabled=has_path,
+    @api.command("binder.create", "New Binder &Document...", menu="binder", enabled=has_path,
                  description="Create an overall document listing this one as its first chapter")
     async def create(app):
         path, links = links_here()
@@ -228,7 +308,84 @@ def register(api):
         app.status.flash(f"Created {target.name} with this document as its first entry.")
         api.refresh_status()
 
-    @api.command("binder.check", "&Check Links", menu="document", enabled=has_path)
+    # -- research --------------------------------------------------------------
+
+    def research_home(path: Path) -> tuple[Path, Path]:
+        """(binder or document that lists research, folder new notes go in)."""
+        holder = binder_for(path) or path
+        folder = holder.parent / str(api.settings.get("research_folder", "research"))
+        return holder, folder
+
+    @api.command("binder.note", "New Research &Note...", menu="binder", separator=True, enabled=has_path,
+                 description="A note listed under the binder's research, not part of the manuscript")
+    async def new_note(app):
+        path, _ = links_here()
+        holder, folder = research_home(path)
+        title = await app.push_screen_wait(InputDialog("New Research Note", "Title:", ""))
+        if not title:
+            return
+        target = folder / f"{_slug(title)}.md"
+        if target.exists():
+            app.notify(f"{target.name} already exists; opening it.", severity="warning")
+        else:
+            folder.mkdir(parents=True, exist_ok=True)
+            text = model.set_relation(f'---\ntitle: "{title}"\ntype: research\n---\n# {title}\n\n', target, "parent", [holder])
+            write_text(target, text)
+            write(holder, model.add_relation(read(holder) or "", holder, "research", target))
+        await app.open_path(target)
+
+    @api.command("binder.clip", "&Clip Web Page...", menu="binder", enabled=has_path,
+                 description="Save a web page's text as a research note")
+    async def clip_page(app):
+        path, _ = links_here()
+        holder, folder = research_home(path)
+        url = await app.push_screen_wait(InputDialog("Clip Web Page", "Address:", "https://"))
+        if not url or url.strip() in ("https://", "http://"):
+            return
+        url = url.strip()
+        app.status.flash(f"Fetching {url}...", seconds=30)
+        try:
+            title, body = await api.run_in_thread(clip.fetch, url)
+        except Exception as exc:
+            app.notify(f"Could not fetch the page: {exc}", severity="error")
+            return
+        title = title or url
+        target = folder / f"{_slug(title)[:60]}.md"
+        n = 2
+        while target.exists():
+            target = folder / f"{_slug(title)[:60]}-{n}.md"
+            n += 1
+        folder.mkdir(parents=True, exist_ok=True)
+        from datetime import date
+
+        head = f'---\ntitle: "{title.replace(chr(34), chr(39))}"\ntype: research\nsource: {url}\nclipped: {date.today().isoformat()}\n---\n'
+        text = model.set_relation(head + f"Source: <{url}>\n\n" + body, target, "parent", [holder])
+        write_text(target, text)
+        write(holder, model.add_relation(read(holder) or "", holder, "research", target))
+        await app.open_path(target)
+        app.status.flash(f"Clipped {len(body.split()):,} words into {target.name}.")
+
+    @api.command("binder.research", "Add &Research...", menu="binder", enabled=has_path,
+                 description="List a file, folder or web address under the binder's research")
+    async def add_research(app):
+        path, _ = links_here()
+        holder, _folder = research_home(path)
+        kind = await app.push_screen_wait(ChoiceDialog("Add Research", [("file", "A file or folder"), ("url", "A web address")]))
+        if kind == "url":
+            url = await app.push_screen_wait(InputDialog("Add Research", "Address:", "https://"))
+            if url and url.strip() not in ("https://", "http://"):
+                write(holder, model.add_relation(read(holder) or "", holder, "research", url.strip()))
+                app.status.flash("Added to research.")
+        elif kind == "file":
+            picked = await app.push_screen_wait(FileManagerScreen("open", holder.parent))
+            if picked:
+                text = read(holder) or ""
+                for item in picked:
+                    text = model.add_relation(text, holder, "research", model.norm(item))
+                write(holder, text)
+                app.status.flash(f"Added {len(picked)} item(s) to research.")
+
+    @api.command("binder.check", "Ch&eck Links", menu="binder", separator=True, enabled=has_path)
     async def check(app):
         path, links = links_here()
         docs = [path] + (model.leaves(path, read) if links.is_binder else [])
@@ -272,7 +429,7 @@ def register(api):
         path = current_path()
         return path is not None and binder_for(path) is not None
 
-    @api.command("binder.preview", "Preview &Manuscript", menu="document", enabled=in_binder)
+    @api.command("binder.preview", "&Preview Manuscript", menu="binder", enabled=in_binder)
     async def preview_manuscript(app):
         from inkmill.system import open_in_browser
 
@@ -290,7 +447,7 @@ def register(api):
             return
         app.status.flash(f"Manuscript opened ({how}).")
 
-    @api.command("binder.export", "&Export Manuscript...", menu="document", enabled=in_binder)
+    @api.command("binder.export", "Export &Manuscript...", menu="binder", enabled=in_binder)
     async def export_manuscript(app):
         doc = app.active_document
         binder = binder_for(model.norm(doc.path))
@@ -301,6 +458,64 @@ def register(api):
         target = Path(answer).expanduser()
         target.write_text(manuscript(doc, app.settings), encoding="utf-8")
         app.status.flash(f"Exported {target}")
+
+    # -- for other plugins -----------------------------------------------------
+
+    class Service:
+        """What Progress, Export via Pandoc and the AI Assistant use."""
+
+        @staticmethod
+        def binder_for(path: Path) -> Path | None:
+            return binder_for(model.norm(path))
+
+        @staticmethod
+        def title(path: Path) -> str:
+            return model.title_of(path, read(path))
+
+        @staticmethod
+        def chapters(binder: Path) -> list[Path]:
+            return model.leaves(binder, read)
+
+        @staticmethod
+        def read(path: Path) -> str | None:
+            return read(path)
+
+        @staticmethod
+        def manuscript_markdown(binder: Path) -> str:
+            return model.manuscript_markdown(
+                binder, read,
+                include_binder_text=bool(api.settings.get("include_binder_text", False)),
+                add_titles=bool(api.settings.get("chapter_titles", True)),
+            )
+
+        @staticmethod
+        def research(binder: Path) -> tuple[list[Path], list[str]]:
+            links = model.read_links(binder, read(binder))
+            files: list[Path] = []
+            for item in links.research:
+                if item.is_dir():
+                    files += sorted(p for p in item.rglob("*") if p.suffix.lower() in model.DOC_SUFFIXES)
+                elif item.suffix.lower() in model.DOC_SUFFIXES:
+                    files.append(item)
+            return files, list(links.research_urls)
+
+        @staticmethod
+        def project(path: Path) -> dict | None:
+            holder = binder_for(model.norm(path))
+            if holder is None:
+                return None
+            text = read(holder)
+            target = model.field_value(text, "target")
+            if not target:
+                return None
+            return {"title": model.title_of(holder, text), "words": model.binder_words(holder, read),
+                    "target": target, "deadline": model.field_value(text, "deadline")}
+
+        @staticmethod
+        def set_field(path: Path, key: str, value: str | None) -> None:
+            write(model.norm(path), model.set_field(read(path) or "", key, value))
+
+    api.provide("binder", Service())
 
     # -- status line and renames -----------------------------------------------
 
@@ -348,6 +563,28 @@ def register(api):
                 changed += 1
         if changed:
             app.notify(f"Updated links in {changed} document(s) for the rename.", title="Binder")
+
+
+def _slug(title: str) -> str:
+    import re
+
+    return re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-") or "note"
+
+
+def _pace(words: int, target: int, deadline: str) -> str | None:
+    from datetime import date
+
+    try:
+        end = date.fromisoformat(deadline)
+    except (TypeError, ValueError):
+        return None
+    days = (end - date.today()).days + 1
+    remaining = target - words
+    if remaining <= 0:
+        return "target reached"
+    if days <= 0:
+        return f"{remaining:,} words past the deadline"
+    return f"{-(-remaining // days):,} words a day to finish by {deadline}"
 
 
 def _back_question(relation: str, names: str, here: str) -> str:

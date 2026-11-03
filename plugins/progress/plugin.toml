@@ -1,0 +1,7 @@
+id = "progress"
+name = "Progress"
+version = "1.0.0"
+requires_inkmill = ">=0.3"
+summary = "Words written each day against a goal, streaks, timed sprints, and pace toward a project target."
+author = "Aaron Dodd"
+license = "MIT"

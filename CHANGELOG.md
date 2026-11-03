@@ -1,5 +1,46 @@
 # Changelog
 
+## 0.3.0 (unreleased)
+
+Writing tools, as plugins:
+
+- Spelling & Thesaurus: WordPerfect-style spell check (Ctrl+F2), underlines
+  as you write, an offline US English dictionary plus your own lists, and a
+  thesaurus (Alt+F1).
+- Prose Check: passive voice, adverbs, filler, wordy phrases, cliches,
+  repeats and long sentences with readability numbers; adds Vale's findings.
+- Outline (F8): headings in the side panel; move, promote and demote whole
+  sections.
+- Binder 1.1: research (notes, clipped web pages, files, folders, links), a
+  Binder Outline with status, words, targets and synopses, chapter status
+  and synopsis commands, and a Binder menu (Alt+I).
+- Links: wikilinks, Follow Link (Alt+L) for any link, Link Back, backlinks,
+  a note picker; wikilinks become links in HTML export.
+- Comments & Track Changes: CriticMarkup comments and suggestions with a
+  review list, Accept All and Reject All, shown or resolved in exports.
+- Snapshots (Ctrl+F5): named versions with a word-level comparison and
+  restore.
+- Progress (Ctrl+F8): daily words against a goal, streaks, sprints, history
+  and project pace. Replaces Word Goal, which moves back to `examples/`.
+- Templates & Journal: bundled and personal templates with placeholders,
+  and a daily journal page (Alt+J).
+- Export via Pandoc: DOCX, standard manuscript format, ODT, EPUB, PDF, RTF
+  and LaTeX for a document or a whole binder; import from Word and others.
+- AI Assistant: opt-in feedback, rewrites, synopses and a binder-wide
+  continuity check through Claude, Ollama or any OpenAI-compatible server,
+  with streaming replies and prompt caching.
+
+Core:
+
+- A side panel that plugins fill on demand; Ctrl+T switches to it.
+- Plugin APIs for editor highlights, Markdown export extensions, services
+  between plugins, and the `document_changed` and `panel_closed` events;
+  `open_url`, `open_file` and `mask_non_prose` helpers.
+- Plugin manifests declare outside programs with `[[requires]]`; View >
+  Plugins checks them, shows install commands for your platform, and asks
+  before installing a plugin whose program is missing.
+- Fixed: Revert and Recover shared the V accelerator in the File menu.
+
 ## 0.2.0 (unreleased)
 
 - View > Plugins: browse, install, update, disable, remove and roll back

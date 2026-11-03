@@ -61,6 +61,8 @@ EVENTS = {
     "document_saved": ("doc",),
     "document_closed": ("doc",),
     "document_reloaded": ("doc",),
+    "document_changed": ("doc",),  # the active document was edited; sent after typing pauses
+    "panel_closed": ("owner",),  # the side panel closed; owner is the plugin that filled it
     "file_moved": ("old", "new"),
     "file_deleted": ("path",),
 }
@@ -68,6 +70,76 @@ EVENTS = {
 
 def plugins_dir() -> Path:
     return config_dir() / "plugins"
+
+
+@dataclass
+class Requirement:
+    """An outside program a plugin uses, such as git or pandoc."""
+
+    command: str = ""
+    # Any one of these satisfies the requirement (for example PDF engines).
+    any_of: list[str] = field(default_factory=list)
+    optional: bool = False
+    purpose: str = ""
+    url: str = ""
+    # Install instructions by platform: windows, macos, linux, termux.
+    install: dict[str, str] = field(default_factory=dict)
+
+    @classmethod
+    def from_value(cls, value: Any) -> "Requirement":
+        if isinstance(value, str):
+            return cls(command=value)
+        if not isinstance(value, dict):
+            raise ValueError("a requirement is a command name or a table")
+        any_of = value.get("any_of", [])
+        install = value.get("install", {})
+        return cls(
+            command=str(value.get("command", "")),
+            any_of=[str(c) for c in any_of] if isinstance(any_of, list) else [],
+            optional=bool(value.get("optional", False)),
+            purpose=str(value.get("purpose", "")),
+            url=str(value.get("url", "")),
+            install={str(k): str(v) for k, v in install.items()} if isinstance(install, dict) else {},
+        )
+
+    @property
+    def commands(self) -> list[str]:
+        return [self.command] if self.command else list(self.any_of)
+
+    @property
+    def name(self) -> str:
+        return self.command or " or ".join(self.any_of)
+
+    def found(self) -> str | None:
+        """Path of the first command found on PATH, or None."""
+        import shutil
+
+        for command in self.commands:
+            path = shutil.which(command)
+            if path:
+                return path
+        return None
+
+    def install_hint(self) -> str:
+        from .system import is_termux
+
+        if is_termux():
+            key = "termux"
+        elif sys.platform == "win32":
+            key = "windows"
+        elif sys.platform == "darwin":
+            key = "macos"
+        else:
+            key = "linux"
+        hint = self.install.get(key) or self.install.get("default", "")
+        if self.url:
+            hint = f"{hint} (see {self.url})" if hint else self.url
+        return hint
+
+    def to_dict(self) -> dict[str, Any]:
+        data: dict[str, Any] = {"command": self.command, "any_of": self.any_of, "optional": self.optional,
+                                "purpose": self.purpose, "url": self.url, "install": self.install}
+        return {k: v for k, v in data.items() if v not in ("", [], {}, False)}
 
 
 @dataclass
@@ -81,10 +153,22 @@ class Manifest:
     license: str = ""
     homepage: str = ""
     external: list[str] = field(default_factory=list)
+    requires: list[Requirement] = field(default_factory=list)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any], fallback_id: str = "") -> "Manifest":
         external = data.get("external", [])
+        requires = []
+        raw = data.get("requires", [])
+        for item in raw if isinstance(raw, list) else []:
+            try:
+                requires.append(Requirement.from_value(item))
+            except ValueError:
+                continue
+        named = {r.command for r in requires}
+        for command in external if isinstance(external, list) else []:
+            if str(command) not in named:
+                requires.append(Requirement(command=str(command)))
         return cls(
             id=str(data.get("id") or fallback_id),
             name=str(data.get("name") or data.get("id") or fallback_id),
@@ -95,6 +179,7 @@ class Manifest:
             license=str(data.get("license", "")),
             homepage=str(data.get("homepage", "")),
             external=[str(e) for e in external] if isinstance(external, list) else [],
+            requires=requires,
         )
 
     @classmethod
@@ -113,6 +198,7 @@ class Manifest:
             "license": self.license,
             "homepage": self.homepage,
             "external": list(self.external),
+            "requires": [r.to_dict() for r in self.requires],
         }
         return {k: v for k, v in data.items() if v not in ("", [])}
 
@@ -286,6 +372,52 @@ class PluginAPI:
     async def run_in_thread(self, func: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
         """Run blocking work (a subprocess, a file scan) off the UI thread."""
         return await asyncio.to_thread(func, *args, **kwargs)
+
+    # -- side panel -------------------------------------------------------
+
+    async def show_panel(self, widget, title: str, hint: str = "", *, focus: bool = True) -> None:
+        """Show ``widget`` in the side panel, replacing whatever was there."""
+        await self.app.show_panel(widget, title=title, owner=self.plugin_name, hint=hint, focus=focus)
+
+    def hide_panel(self) -> None:
+        """Close the side panel if this plugin is the one showing it."""
+        if self.owns_panel:
+            self.app.hide_panel()
+
+    @property
+    def owns_panel(self) -> bool:
+        return self.app.panel.visible and self.app.panel.owner == self.plugin_name
+
+    # -- editor highlights -------------------------------------------------
+
+    def decoration_style(self, name: str, style) -> None:
+        """Register a highlight style for ``editor.set_decorations``.
+
+        ``style`` is a Rich ``Style`` or a function taking the theme's
+        variables (``im-heading``, ``im-mark``, ...) and returning one, so the
+        highlight follows the screen theme.
+        """
+        self.app.decoration_styles[name] = style
+        self.app.refresh_editor_styles()
+
+    # -- export and other plugins -----------------------------------------
+
+    def markdown_extension(self, extend: Callable[[Any], None]) -> None:
+        """Extend the Markdown parser used for HTML export and preview.
+
+        ``extend`` receives the ``markdown_it.MarkdownIt`` instance.
+        """
+        from .export.markdown import register_extension
+
+        register_extension(self.plugin_name, extend)
+
+    def provide(self, name: str, service: Any) -> None:
+        """Offer an object other plugins can find with :meth:`service`."""
+        self.app.services[name] = service
+
+    def service(self, name: str) -> Any:
+        """Another plugin's service (``"binder"``, ...), or None if not installed."""
+        return self.app.services.get(name)
 
     def register_format(self, fmt: DocumentFormat) -> None:
         self.app.formats.register(fmt)

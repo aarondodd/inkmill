@@ -1,0 +1,19 @@
+id = "pandoc"
+name = "Export via Pandoc"
+version = "1.0.0"
+requires_inkmill = ">=0.3"
+summary = "Export to DOCX, standard manuscript format, ODT, EPUB, PDF, RTF and LaTeX, and import Word, OpenDocument, HTML and more."
+author = "Aaron Dodd"
+license = "MIT"
+
+[[requires]]
+command = "pandoc"
+purpose = "every export and import"
+url = "https://pandoc.org/installing.html"
+install = { windows = "winget install JohnMacFarlane.Pandoc", macos = "brew install pandoc", linux = "sudo apt install pandoc (or the newer .deb from https://github.com/jgm/pandoc/releases)", termux = "pkg install pandoc" }
+
+[[requires]]
+any_of = ["typst", "weasyprint", "wkhtmltopdf", "xelatex", "lualatex", "pdflatex"]
+optional = true
+purpose = "PDF export"
+install = { windows = "winget install Typst.Typst", macos = "brew install typst", linux = "install typst from https://github.com/typst/typst/releases", termux = "pkg install typst" }

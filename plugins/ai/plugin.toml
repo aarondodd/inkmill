@@ -1,0 +1,7 @@
+id = "ai"
+name = "AI Assistant"
+version = "1.0.0"
+requires_inkmill = ">=0.3"
+summary = "Opt-in help from Claude, a local Ollama model or any OpenAI-compatible server: feedback, rewrites, synopses and a continuity check across a binder."
+author = "Aaron Dodd"
+license = "MIT"

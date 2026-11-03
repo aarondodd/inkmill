@@ -34,6 +34,8 @@ contents:
 | `contents` | In a binder: its documents in order. An entry can itself be a binder (a part holding chapters). |
 | `previous`, `next` | Explicit neighbors. Use them to chain documents with no binder; they win over the binder's order. |
 | `related` | Other documents this one relates to. |
+| `research` | In a binder: notes, files, folders and web addresses that support the work. |
+| `status`, `synopsis`, `target` | A chapter's state, summary and word target. A binder can have a `target` and a `deadline`. |
 
 Paths are relative to the document's own folder and use forward slashes, so
 they work on Windows, Linux and Android and survive moving the whole
@@ -43,22 +45,29 @@ included, is left alone.
 
 ## Commands
 
-In the Document menu:
+All in the Binder menu (Alt+I):
 
 | Command | Key | What it does |
 |---------|-----|--------------|
-| Binder... | Alt+F5 | The binder, its contents, neighbors, related and linking documents |
+| Binder... | Alt+F5 | The binder, its contents, neighbors, related documents, research and documents that link here |
+| Binder Outline... | | Every chapter with status, words, target and synopsis (below) |
 | Previous Chapter / Next Chapter | Alt+PgUp / Alt+PgDn | Open the neighbor |
 | Up to Binder | Alt+Up | Open the binder |
-| Link Document... | | Set the binder, previous, next or a related document |
+| Set Status... | | idea, outline, draft, revised, final, or your own list |
+| Set Synopsis... | | One or two sentences, shown in the outline |
+| Link Document... | | Set the binder, previous, next, a related document, or research |
 | Remove Link... | | Remove one, and optionally the link back |
 | New Next Chapter... | | Create the next file (`chapter-03.md` after `chapter-02.md`) and put it in order |
 | New Binder Document... | | Start a binder with this document as its first entry |
+| New Research Note... | | A note in `research/` listed under the binder's research |
+| Clip Web Page... | | Save a web page's text as a research note, with its address |
+| Add Research... | | List a file, a folder or a web address under research |
 | Check Links | | Report links to missing files |
 | Preview Manuscript / Export Manuscript... | | The whole binder as one styled HTML page |
 
-In the Binder list, Enter opens the highlighted document and `[` and `]`
-move a chapter up or down in the binder.
+In the Binder list, Enter opens the highlighted entry: a document in
+Inkmill, a folder in List Files, a PDF or image in its usual app, and a web
+address in the browser. `[` and `]` move a chapter up or down.
 
 Link Document asks whether to update the other file too, so adding a
 binder as `parent` also adds this document to the binder's `contents`.
@@ -69,6 +78,45 @@ document's folder, the folder above and the folders directly below.
 
 Some terminals do not pass Alt+PgUp, Alt+PgDn or Alt+Up through. The Binder
 list (Alt+F5) always works, and any key can be rebound under `[keys]`.
+
+![The Binder list](https://raw.githubusercontent.com/aarondodd/inkmill/main/docs/screenshots/binder.png)
+
+## Research
+
+Research supports the work without being part of it: notes, clipped pages,
+PDFs, folders of images, web addresses. It is listed in the binder's front
+matter and never appears in the manuscript.
+
+```yaml
+research:
+  - research/ships.md
+  - research/maps/
+  - https://en.wikipedia.org/wiki/Square_rig
+```
+
+New Research Note and Clip Web Page create notes in a `research` folder next
+to the binder (setting `research_folder`) and link them both ways. Clipping
+keeps a page's main text, headings, lists, quotes and links, and drops
+navigation and scripts. The AI Assistant's Continuity Check reads research
+notes along with the manuscript.
+
+## Binder Outline
+
+![Binder Outline](https://raw.githubusercontent.com/aarondodd/inkmill/main/docs/screenshots/binder-outline.png)
+
+One row per chapter: number, title, status, words, word target and the
+start of the synopsis, with the full synopsis of the highlighted chapter
+below. The totals line shows the binder's words against its target and the
+pace needed to meet its deadline (set with Progress > Project Target, or
+`target` and `deadline` in the binder's front matter).
+
+| Key | What it does |
+|-----|--------------|
+| Enter | Open the chapter |
+| [ and ] | Move it up or down |
+| S | Set its status |
+| Y | Edit its synopsis |
+| T | Set its word target |
 
 ## The manuscript
 
@@ -87,4 +135,6 @@ word count in the binder itself.
 status = true                # chapter number and total in the status line
 chapter_titles = true        # add a heading to chapters that have none
 include_binder_text = false  # put the binder's own body first in the manuscript
+research_folder = "research" # where new research notes and clips go
+statuses = ["idea", "outline", "draft", "revised", "final"]
 ```

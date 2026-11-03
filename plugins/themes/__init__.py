@@ -127,7 +127,7 @@ def register(api):
         else:
             app.status.flash(f"Reloaded themes from {user_themes_dir()}.")
 
-    @api.command("themes.folder", "Open Themes &Folder", menu="view")
+    @api.command("themes.folder", "Open T&hemes Folder", menu="view")
     def open_folder(app):
         from inkmill.system import open_folder as reveal
 

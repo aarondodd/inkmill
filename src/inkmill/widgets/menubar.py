@@ -56,6 +56,7 @@ class MenuStrip(Widget):
         self.selected = selected
         self.hint = hint
         self._spans: list[tuple[int, int]] = []
+        self._indexes: list[int] = []
 
     def select(self, index: int | None) -> None:
         self.selected = index
@@ -63,33 +64,77 @@ class MenuStrip(Widget):
 
     def menu_x(self, index: int) -> int:
         self.render()
-        return self._spans[index][0] if index < len(self._spans) else 0
+        for i, (start, _end) in zip(self._indexes, self._spans):
+            if i == index:
+                return start
+        return 0
+
+    def _items(self, pad: int) -> list[tuple[str, int]]:
+        """(label text, accelerator position) for each menu with ``pad`` spaces each side."""
+        items = []
+        for menu in self.menus:
+            plain, _accel, idx = split_accelerator(menu.label)
+            items.append((" " * pad + plain + " " * pad, idx + pad if idx >= 0 else -1))
+        return items
 
     def render(self) -> Text:
         key_style = self.get_component_rich_style("menustrip--key", partial=True)
         sel_style = self.get_component_rich_style("menustrip--selected", partial=True)
-        text = Text(" ")
+        width = self.size.width or 80
+        # Fit the bar: drop the hint first, then tighten spacing, then scroll so
+        # the open menu stays visible, with < and > marking hidden menus.
+        layout = None
+        for pad, gap, hint in ((1, 1, True), (1, 1, False), (1, 0, False), (0, 1, False)):
+            items = self._items(pad)
+            total = 1 + sum(len(t) for t, _ in items) + gap * (len(items) - 1)
+            room = width - (len(self.hint) + 2 if hint and self.hint else 0)
+            if total <= room:
+                layout = (items, gap, hint)
+                break
+        if layout is None:
+            layout = (self._items(0), 1, False)
+        items, gap, show_hint = layout
+        first, last = 0, len(items)
+        total = 1 + sum(len(t) for t, _ in items) + gap * (len(items) - 1)
+        if total > width:
+            target = self.selected if self.selected is not None else 0
+            first = target
+            used = 2 + len(items[target][0])
+            last = target + 1
+            # Grow the window right, then left, while it fits.
+            while last < len(items) and used + gap + len(items[last][0]) + 2 <= width:
+                used += gap + len(items[last][0])
+                last += 1
+            while first > 0 and used + gap + len(items[first - 1][0]) + 2 <= width:
+                first -= 1
+                used += gap + len(items[first][0])
+        text = Text("<" if first > 0 else " ")
         self._spans = []
-        for i, menu in enumerate(self.menus):
-            plain, _accel, idx = split_accelerator(menu.label)
+        self._indexes = []
+        for i in range(first, last):
+            label, idx = items[i]
             start = len(text)
-            item = Text(f" {plain} ")
+            item = Text(label)
             if idx >= 0:
-                item.stylize(key_style, idx + 1, idx + 2)
+                item.stylize(key_style, idx, idx + 1)
             if i == self.selected:
                 item.stylize(sel_style)
             text.append_text(item)
             self._spans.append((start, len(text)))
-            text.append(" ")
-        if self.hint:
+            self._indexes.append(i)
+            if i < last - 1:
+                text.append(" " * gap)
+        if last < len(items):
+            text.append(" " * max(0, width - len(text) - 1) + ">")
+        elif show_hint and self.hint:
             hint_style = self.get_component_rich_style("menustrip--hint", partial=True)
-            pad = max(1, self.size.width - len(text) - len(self.hint) - 1)
+            pad = max(1, width - len(text) - len(self.hint) - 1)
             text.append(" " * pad)
             text.append(self.hint, style=hint_style)
         return text
 
     def on_click(self, event: events.Click) -> None:
-        for i, (start, end) in enumerate(self._spans):
+        for i, (start, end) in zip(self._indexes, self._spans):
             if start <= event.x < end:
                 event.stop()
                 self.post_message(self.Picked(i))
@@ -195,7 +240,10 @@ class MenuScreen(ModalScreen[str | None]):
             options.pop()
         dropdown.add_options(options)
         x = strip.menu_x(self.index)
-        dropdown.styles.offset = Offset(max(0, x), 0)
+        # Keep the whole dropdown on screen: label, key column, padding, border.
+        drop_w = max(16, label_w + (key_w + 2 if key_w else 0) + 7)
+        screen_w = self.size.width or self.app.size.width
+        dropdown.styles.offset = Offset(max(0, min(x, screen_w - drop_w)), 0)
         dropdown.focus()
         first = next((i for i, opt in enumerate(dropdown._options) if not opt.disabled), None)
         dropdown.highlighted = first

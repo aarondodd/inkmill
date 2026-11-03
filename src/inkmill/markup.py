@@ -213,3 +213,37 @@ def find_all(text: str, needle: str, *, case: bool = False, regex: bool = False)
     flags = 0 if case else re.IGNORECASE
     pattern = re.compile(needle if regex else re.escape(needle), flags)
     return [(m.start(), m.end()) for m in pattern.finditer(text) if m.end() > m.start()]
+
+
+# -- prose masking -------------------------------------------------------------
+
+_MASK_PATTERNS = [
+    re.compile(r"\A---\n.*?\n(?:---|\.\.\.)[ \t]*(?:\n|\Z)", re.DOTALL),  # front matter
+    re.compile(r"^(```|~~~)[^\n]*\n.*?(?:^\1[ \t]*$|\Z)", re.DOTALL | re.MULTILINE),  # fenced code
+    re.compile(r"<!--.*?-->", re.DOTALL),  # HTML comments
+    re.compile(r"`[^`\n]+`"),  # inline code
+    re.compile(r"\]\([^)\n]*\)"),  # link and image targets
+    re.compile(r"^\s{0,3}\[[^\]\n]+\]:[^\n]*$", re.MULTILINE),  # reference definitions
+    re.compile(r"<[a-zA-Z/!][^>\n]*>"),  # HTML tags and autolinks
+    re.compile(r"\b(?:https?|ftp|mailto|file):[^\s)>\]]+"),  # bare URLs
+    re.compile(r"\b[\w.+-]+@[\w-]+\.[\w.-]+\b"),  # email addresses
+    re.compile(r"\[\^[^\]\n]+\]"),  # footnote labels
+    re.compile(r"\[\[[^\]\n]*\]\]"),  # wikilinks
+    re.compile(r"\{(?:>>|<<|\+\+|--|~~|==)|(?:>>|<<|\+\+|--|~~|==)\}|~>"),  # CriticMarkup markers
+]
+
+
+def mask_non_prose(text: str) -> str:
+    """``text`` with everything that is not prose blanked out.
+
+    Front matter, code, URLs, link targets, HTML and footnote labels become
+    spaces (newlines are kept), so the result has the same length and line
+    structure as the input and any position found in it is valid in ``text``.
+    """
+    chars = list(text)
+    for pattern in _MASK_PATTERNS:
+        for match in pattern.finditer(text):
+            for i in range(match.start(), match.end()):
+                if chars[i] != "\n":
+                    chars[i] = " "
+    return "".join(chars)

@@ -7,6 +7,11 @@ A document may name, relative to its own folder:
     next:     the document after it
     related:  a list of documents it relates to
     contents: for a binder, its documents in reading order
+    research: for a binder, notes, folders, files and web addresses that
+              support the work but are not part of the manuscript
+
+Chapters can also carry ``status`` (draft, revised, ...), ``synopsis`` and a
+word ``target``; a binder can carry a ``target`` and a ``deadline``.
 
 Order normally lives in the binder's ``contents``, so a chapter only needs
 ``parent`` and its neighbors are worked out from the list. Explicit
@@ -29,9 +34,12 @@ from inkmill.documents import count_words
 
 ReadFn = Callable[[Path], "str | None"]
 
-ALIASES = {"parent": ("parent", "up"), "previous": ("previous", "prev"), "next": ("next",), "related": ("related",), "contents": ("contents",)}
-RELATIONS = ("parent", "previous", "next", "related", "contents")
-LIST_RELATIONS = {"parent", "related", "contents"}
+ALIASES = {"parent": ("parent", "up"), "previous": ("previous", "prev"), "next": ("next",), "related": ("related",),
+           "contents": ("contents",), "research": ("research",)}
+RELATIONS = ("parent", "previous", "next", "related", "contents", "research")
+LIST_RELATIONS = {"parent", "related", "contents", "research"}
+STATUSES = ("idea", "outline", "draft", "revised", "final")
+URL = re.compile(r"^[a-z][a-z0-9+.-]*://", re.IGNORECASE)
 DOC_SUFFIXES = (".md", ".markdown", ".txt")
 SCAN_LIMIT = 400
 
@@ -75,6 +83,8 @@ class Links:
     next: Path | None = None
     related: list[Path] = field(default_factory=list)
     contents: list[Path] = field(default_factory=list)
+    research: list[Path] = field(default_factory=list)
+    research_urls: list[str] = field(default_factory=list)
     title: str = ""
 
     @property
@@ -89,6 +99,7 @@ class Links:
             out.append(("next", self.next))
         out += [("related", p) for p in self.related]
         out += [("contents", p) for p in self.contents]
+        out += [("research", p) for p in self.research]
         return out
 
 
@@ -130,7 +141,21 @@ def read_links(owner: Path, text: str | None) -> Links:
     links.next = resolve(owner, nxt[0]) if nxt else None
     links.related = [resolve(owner, r) for r in _get(meta, "related")]
     links.contents = [resolve(owner, r) for r in _get(meta, "contents")]
+    for ref in _get(meta, "research"):
+        if URL.match(ref.strip()):
+            links.research_urls.append(ref.strip())
+        else:
+            links.research.append(resolve(owner, ref))
     return links
+
+
+def field_value(text: str | None, key: str) -> str:
+    value = fm.read(text or "").get(key, "")
+    return value if isinstance(value, str) else ", ".join(value)
+
+
+def set_field(text: str, key: str, value: str | None) -> str:
+    return fm.update(text, {key: value if value else None})
 
 
 @dataclass
@@ -217,11 +242,14 @@ def next_name(path: Path) -> str:
     return f"{path.stem}-next{path.suffix or '.md'}"
 
 
-def set_relation(text: str, owner: Path, relation: str, targets: list[Path]) -> str:
-    """Rewrite one relation in ``text``. An empty list removes the key."""
+def set_relation(text: str, owner: Path, relation: str, targets: list) -> str:
+    """Rewrite one relation in ``text``. An empty list removes the key.
+
+    Targets are paths, or strings (web addresses) kept as written.
+    """
     meta = fm.read(text)
     key = key_in(meta, relation)
-    refs = [relref(owner, t) for t in targets]
+    refs = [t if isinstance(t, str) else relref(owner, t) for t in targets]
     if not refs:
         value = None
     elif relation in LIST_RELATIONS and (relation != "parent" or len(refs) > 1):
@@ -231,12 +259,19 @@ def set_relation(text: str, owner: Path, relation: str, targets: list[Path]) -> 
     return fm.update(text, {key: value})
 
 
-def add_relation(text: str, owner: Path, relation: str, target: Path, *, after: Path | None = None) -> str:
+def add_relation(text: str, owner: Path, relation: str, target, *, after: Path | None = None) -> str:
     links = read_links(owner, text)
-    current = {"parent": links.parents, "related": links.related, "contents": links.contents}.get(relation)
+    if relation == "research":
+        current = [*links.research, *links.research_urls]
+        if isinstance(target, str):
+            if target in links.research_urls:
+                return text
+            return set_relation(text, owner, relation, current + [target])
+    else:
+        current = {"parent": links.parents, "related": links.related, "contents": links.contents}.get(relation)
     if current is None:
         return set_relation(text, owner, relation, [target])
-    if any(same(t, target) for t in current):
+    if any(not isinstance(t, str) and same(t, target) for t in current):
         return text
     items = list(current)
     index = len(items)
@@ -245,20 +280,21 @@ def add_relation(text: str, owner: Path, relation: str, target: Path, *, after: 
             if same(item, after):
                 index = i + 1
                 break
-    items.insert(index, norm(target))
+    items.insert(index, target if isinstance(target, str) else norm(target))
     return set_relation(text, owner, relation, items)
 
 
-def remove_relation(text: str, owner: Path, relation: str, target: Path) -> str:
+def remove_relation(text: str, owner: Path, relation: str, target) -> str:
     links = read_links(owner, text)
     current = {
         "parent": links.parents,
         "related": links.related,
         "contents": links.contents,
+        "research": [*links.research, *links.research_urls],
         "previous": [links.previous] if links.previous else [],
         "next": [links.next] if links.next else [],
     }[relation]
-    remaining = [t for t in current if not same(t, target)]
+    remaining = [t for t in current if (t != target if isinstance(t, str) or isinstance(target, str) else not same(t, target))]
     if len(remaining) == len(current):
         return text
     return set_relation(text, owner, relation, remaining)
@@ -284,11 +320,12 @@ def rewrite_target(text: str, owner: Path, old: Path, new: Path) -> str:
         ("parent", links.parents),
         ("related", links.related),
         ("contents", links.contents),
+        ("research", [*links.research, *links.research_urls]),
         ("previous", [links.previous] if links.previous else []),
         ("next", [links.next] if links.next else []),
     ):
-        if any(same(t, old) for t in items):
-            text = set_relation(text, owner, relation, [new if same(t, old) else t for t in items])
+        if any(not isinstance(t, str) and same(t, old) for t in items):
+            text = set_relation(text, owner, relation, [new if not isinstance(t, str) and same(t, old) else t for t in items])
     return text
 
 
@@ -299,6 +336,7 @@ def rebase(text: str, old_owner: Path, new_owner: Path) -> str:
         ("parent", links.parents),
         ("related", links.related),
         ("contents", links.contents),
+        ("research", [*links.research, *links.research_urls]),
         ("previous", [links.previous] if links.previous else []),
         ("next", [links.next] if links.next else []),
     ):

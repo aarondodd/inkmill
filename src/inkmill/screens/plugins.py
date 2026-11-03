@@ -8,7 +8,6 @@ offers when you leave it.
 
 from __future__ import annotations
 
-import shutil
 from typing import TYPE_CHECKING
 
 from rich.markdown import Markdown
@@ -27,6 +26,8 @@ from ..pluginmanager import (
     Row,
     Source,
     build_rows,
+    check_requirements,
+    describe_missing,
     fetch_index,
     install,
     installed_plugins,
@@ -235,9 +236,12 @@ class PluginManagerScreen(Screen):
             field("Requires", describe_requirement(manifest.requires_inkmill) if manifest.requires_inkmill else "")
             field("Author", manifest.author)
             field("License", manifest.license)
-            if manifest.external:
-                found = [f"{tool} ({'found' if shutil.which(tool) else 'not found'})" for tool in manifest.external]
-                field("Needs", ", ".join(found))
+            for req in manifest.requires:
+                path = req.found()
+                state = "found" if path else ("not found, optional" if req.optional else "NOT FOUND")
+                field("Needs", f"{req.name} ({state})" + (f": {req.purpose}" if req.purpose else ""))
+                if not path and req.install_hint():
+                    field("", f"Install: {req.install_hint()}")
         if row.previous:
             field("Roll back", f"version {row.previous} is kept (8)")
         if row.installed:
@@ -369,6 +373,8 @@ class PluginManagerScreen(Screen):
             )
             if answer != "yes":
                 return
+        if not await self._requirements_ok(row):
+            return
         if row.installed is None:
             answer = await self.app.push_screen_wait(
                 ConfirmDialog(
@@ -379,6 +385,29 @@ class PluginManagerScreen(Screen):
             if answer != "yes":
                 return
         await self._install_rows([row])
+
+    async def _requirements_ok(self, row: Row) -> bool:
+        """Warn about missing programs before installing. False to stop."""
+        manifest = row.entry.manifest if row.entry else None
+        required, optional = check_requirements(manifest)
+        if required:
+            answer = await self.app.push_screen_wait(
+                ConfirmDialog(
+                    "Missing programs",
+                    f"{row.name} needs programs that are not installed:\n\n{describe_missing(required)}\n\n"
+                    "Install them, then press 6 to check again. You can also install the plugin now; "
+                    "its commands will explain what is missing until you do.",
+                    (("yes", "&Install anyway"), ("no", "&Cancel")),
+                )
+            )
+            return answer == "yes"
+        if optional:
+            self.notify(
+                f"{row.name} works without these, with fewer features:\n{describe_missing(optional)}",
+                title="Optional programs not found",
+                timeout=12,
+            )
+        return True
 
     def do_update(self) -> None:
         row = self.current_row()

@@ -1,0 +1,7 @@
+id = "templates"
+name = "Templates & Journal"
+version = "1.0.0"
+requires_inkmill = ">=0.3"
+summary = "New documents from templates (chapter, scene card, character, query letter and your own) and a daily journal page."
+author = "Aaron Dodd"
+license = "MIT"

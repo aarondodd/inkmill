@@ -1,0 +1,7 @@
+id = "snapshots"
+name = "Snapshots"
+version = "1.0.0"
+requires_inkmill = ">=0.3"
+summary = "Named versions of a document without git: compare word by word, restore, or open a copy."
+author = "Aaron Dodd"
+license = "MIT"

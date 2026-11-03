@@ -1,0 +1,7 @@
+id = "comments"
+name = "Comments & Track Changes"
+version = "1.0.0"
+requires_inkmill = ">=0.3"
+summary = "Comments and suggested insertions, deletions and replacements in CriticMarkup, with a review list to accept or reject them."
+author = "Aaron Dodd"
+license = "MIT"

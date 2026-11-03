@@ -1,0 +1,7 @@
+id = "spelling"
+name = "Spelling & Thesaurus"
+version = "1.0.0"
+requires_inkmill = ">=0.3"
+summary = "Spell check with suggestions (Ctrl+F2), misspellings underlined as you write, and a thesaurus (Alt+F1)."
+author = "Aaron Dodd"
+license = "MIT; word list from SCOWL (see dictionaries/SCOWL-LICENSE.txt)"

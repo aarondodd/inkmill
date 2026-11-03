@@ -130,3 +130,41 @@ def open_folder(path: Path) -> None:
         _run_detached(["termux-open", str(path)])
     else:
         _run_detached(["xdg-open", str(path)])
+
+
+def open_url(url: str) -> str:
+    """Open a web address in the default browser. Returns how it was opened.
+
+    Raises RuntimeError when no method worked.
+    """
+    if is_termux():
+        opener = shutil.which("termux-open-url")
+        if opener and _run_detached([opener, url]):
+            return "termux-open-url"
+        raise RuntimeError("install termux-tools to open links (pkg install termux-tools)")
+    if is_wsl() and shutil.which("wslview") and _run_detached(["wslview", url]):
+        return "wslview"
+    if webbrowser.open(url):
+        return "webbrowser"
+    raise RuntimeError("no web browser could be found")
+
+
+def open_file(path: Path) -> str:
+    """Open a file (a PDF, an image) in the system's default app."""
+    path = path.resolve()
+    if is_termux():
+        opener = shutil.which("termux-open")
+        if opener and _run_detached([opener, str(path)]):
+            return "termux-open"
+        raise RuntimeError("install termux-tools to open files (pkg install termux-tools)")
+    if sys.platform == "win32":
+        os.startfile(str(path))  # type: ignore[attr-defined]
+        return "startfile"
+    if sys.platform == "darwin":
+        if _run_detached(["open", str(path)]):
+            return "open"
+    if is_wsl() and shutil.which("wslview") and _run_detached(["wslview", str(path)]):
+        return "wslview"
+    if shutil.which("xdg-open") and _run_detached(["xdg-open", str(path)]):
+        return "xdg-open"
+    return open_in_browser(path)

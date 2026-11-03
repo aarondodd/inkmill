@@ -67,7 +67,58 @@ def test_repository_plugins_load(tmp_path):
     plugins = Path(__file__).parent.parent / "plugins"
     app = make_app(tmp_path, plugins)
     assert all(p.error is None for p in app.plugin_info), [p.error for p in app.plugin_info]
+    assert all(p.skipped is None for p in app.plugin_info), [(p.name, p.skipped) for p in app.plugin_info]
+    for menu in ("tools", "git", "review", "binder", "ai"):
+        assert app.menus.get(menu) is not None, menu
+    assert {p.name: p.version for p in app.plugin_info}["binder"] == "1.1.0"
+    assert app.commands.key_conflicts() == {}
+
+
+def test_example_plugin_loads(tmp_path):
+    from pathlib import Path
+
+    examples = Path(__file__).parent.parent / "examples" / "plugins"
+    app = make_app(tmp_path, examples)
+    assert all(p.error is None for p in app.plugin_info), [p.error for p in app.plugin_info]
     assert "word_goal.progress" in app.commands
-    assert app.menus.get("tools") is not None
-    assert app.menus.get("git") is not None
-    assert {p.name: p.version for p in app.plugin_info}["binder"] == "1.0.0"
+
+
+def test_menu_accelerators_are_unique(tmp_path):
+    from pathlib import Path
+
+    from inkmill.menus import MenuItem, split_accelerator
+
+    app = make_app(tmp_path, Path(__file__).parent.parent / "plugins")
+    letters = [m.accelerator for m in app.menus]
+    assert len(letters) == len(set(letters)), letters
+    for menu in app.menus:
+        seen = {}
+        for item in menu.items:
+            if not isinstance(item, MenuItem):
+                continue
+            label = item.label or app.commands.get(item.command).label
+            letter = split_accelerator(label)[1]
+            if letter:
+                assert letter.lower() not in seen, (menu.id, label, seen.get(letter.lower()))
+                seen[letter.lower()] = label
+
+
+async def test_every_menu_is_reachable_on_a_phone_width_screen(tmp_path):
+    from pathlib import Path
+
+    from inkmill.menus import split_accelerator
+    from inkmill.widgets.menubar import MenuDropdown, MenuScreen, MenuStrip
+
+    app = make_app(tmp_path, Path(__file__).parent.parent / "plugins")
+    async with app.run_test(size=(48, 24)) as pilot:
+        await pilot.press("escape")
+        await pilot.pause()
+        screen = app.screen
+        assert isinstance(screen, MenuScreen)
+        for i, menu in enumerate(app.menus):
+            screen._show(i)
+            await pilot.pause()
+            strip = screen.query_one(MenuStrip)
+            assert split_accelerator(menu.label)[0] in strip.render().plain, menu.label
+            dropdown = screen.query_one(MenuDropdown)
+            assert dropdown.region.right <= 48, (menu.label, dropdown.region)
