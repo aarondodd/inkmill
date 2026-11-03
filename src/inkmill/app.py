@@ -218,7 +218,9 @@ class InkmillApp(App):
 
     @property
     def status(self) -> StatusBar:
-        return self.query_one(StatusBar)
+        # The status bar lives on the base screen, whatever is on top of it.
+        base = self.screen_stack[0] if self.screen_stack else self.screen
+        return base.query_one(StatusBar)
 
     # -- documents ---------------------------------------------------------
 
@@ -484,9 +486,14 @@ class InkmillApp(App):
     def _recount(self) -> None:
         self._status_timer = None
         doc = self.docs.active
-        if doc is not None:
-            self._words = doc.word_count()
-            self.status.set_right(f"{self._segments}{self._words:,} words  {self._position}")
+        if doc is None:
+            return
+        try:
+            status = self.status
+        except Exception:  # the app is shutting down
+            return
+        self._words = doc.word_count()
+        status.set_right(f"{self._segments}{self._words:,} words  {self._position}")
 
     # -- menus and commands ----------------------------------------------
 

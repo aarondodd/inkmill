@@ -33,18 +33,20 @@ FIELDS = ("id", "name", "version", "requires_inkmill", "summary", "author", "lic
 
 def plugin_files(folder: Path) -> dict[str, str]:
     files = {}
-    for path in sorted(folder.rglob("*")):
+    for path in folder.rglob("*"):
         if not path.is_file() or path.suffix in SKIP_SUFFIXES:
             continue
         if any(part in SKIP_DIRS or part.startswith(".") for part in path.relative_to(folder).parts):
             continue
         files[path.relative_to(folder).as_posix()] = hashlib.sha256(path.read_bytes()).hexdigest()
-    return files
+    # Sort by the POSIX string: Path ordering is case-insensitive on Windows,
+    # which would otherwise produce a different (but equivalent) index there.
+    return dict(sorted(files.items()))
 
 
 def build(plugins_dir: Path = PLUGINS) -> dict:
     entries = []
-    for folder in sorted(p for p in plugins_dir.iterdir() if p.is_dir() and (p / "plugin.toml").is_file()):
+    for folder in sorted((p for p in plugins_dir.iterdir() if p.is_dir() and (p / "plugin.toml").is_file()), key=lambda p: p.name):
         manifest = tomllib.loads((folder / "plugin.toml").read_text(encoding="utf-8"))
         missing = [k for k in ("id", "name", "version") if not manifest.get(k)]
         if missing:
@@ -91,6 +93,10 @@ def main(argv: list[str] | None = None) -> int:
         current = INDEX.read_text(encoding="utf-8") if INDEX.is_file() else ""
         if current != text:
             print("plugins/index.json is out of date; run python scripts/build_plugin_index.py", file=sys.stderr)
+            for n, (have, want) in enumerate(zip(current.splitlines(), text.splitlines()), start=1):
+                if have != want:
+                    print(f"  line {n}: index has {have.strip()!r}, files give {want.strip()!r}", file=sys.stderr)
+                    break
             status = 1
         if args.base and args.base.is_file() and args.base.stat().st_size:
             for problem in unbumped(index, json.loads(args.base.read_text(encoding="utf-8"))):
