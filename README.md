@@ -48,6 +48,43 @@ Preview in Browser serves the page from a loopback-only web server and hands
 the URL to `termux-open-url`, because Android browsers cannot read files
 inside Termux's private storage.
 
+## Updating
+
+Once a day, when it starts, Inkmill checks the repository for a newer
+version and says so in a notice. Help > Check for Updates shows what is new
+and installs it. How it installs depends on how you installed Inkmill:
+
+| Installed with | What Help > Check for Updates does |
+|----------------|------------------------------------|
+| pipx | Runs `pipx upgrade inkmill`, which keeps packages added with `pipx inject` |
+| pip, in a virtual environment or your user folder (Termux) | Runs `python -m pip install --upgrade` with the same source as before |
+| either, on Windows | Update and Quit closes Inkmill and runs the update in a new PowerShell window, because Windows does not let a running program replace its own files |
+| a source folder (`pip install -e .`) | Shows the commands to run (`git pull`) |
+| a system Python, or a folder you cannot write to | Shows the command to run, and why Inkmill cannot run it |
+
+After an install, Inkmill checks that the new version is the one now
+installed, then offers to restart. A restart asks about unsaved documents
+the same way Exit does and reopens the documents you had open. When Inkmill
+cannot install the update itself, Copy Command puts the command on the
+clipboard. Help > About shows how Inkmill was installed.
+
+The same works from the shell: `inkmill --check-update` says whether a newer
+version is out, and `inkmill --update` installs it (on Windows, in a new
+window, so run it from a terminal where Inkmill is not open). Updating Inkmill
+does not update plugins; Check for Updates lists plugin updates, and View >
+Plugins installs them.
+
+```toml
+[updates]
+check = "daily"        # "startup" checks every time, "off" never checks
+auto_install = false   # true installs new versions without asking, where Inkmill can
+url = ""               # read versions from somewhere other than the main branch
+```
+
+With `auto_install = true`, the update installs in the background and the
+new version starts the next time you open Inkmill. On Windows it runs when
+you quit.
+
 ## Writing
 
 The menu bar is hidden until you press Esc (F10 and Alt+= work too). Left and

@@ -57,6 +57,9 @@ class Settings:
     # Where View > Plugins looks for plugins: source = "online" or "local",
     # index_url for online, local_path (a clone of the Inkmill repo) for local.
     plugin_manager: dict[str, Any] = field(default_factory=dict)
+    # Inkmill's own updates: check = "daily", "startup" or "off";
+    # auto_install = true installs a new version without asking where it can.
+    updates: dict[str, Any] = field(default_factory=dict)
     _extra: dict[str, Any] = field(default_factory=dict, repr=False)
 
     @classmethod

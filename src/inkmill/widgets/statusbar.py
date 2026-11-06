@@ -46,6 +46,11 @@ class StatusBar(Horizontal):
         self.query_one("#status-left", Label).update(message)
         self._message_timer = self.set_timer(seconds, self._clear_message)
 
+    def clear_flash(self) -> None:
+        if self._message_timer is not None:
+            self._message_timer.stop()
+        self._clear_message()
+
     def _clear_message(self) -> None:
         self._message_timer = None
         self.remove_class("-message")

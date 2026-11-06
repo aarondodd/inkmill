@@ -88,6 +88,12 @@ class InkmillApp(App):
         self.handoff = handoff
         # Set by request_restart(); __main__ starts a fresh app when it is.
         self.restart_handoff: Handoff | None = None
+        # Set by the update commands: "restart" starts the newly installed
+        # Inkmill after this one exits; pending_update runs an update once it
+        # has exited (Windows, where running files are locked).
+        self.after_exit: str | None = None
+        self.pending_update: Any = None
+        self.update_installed: str | None = None
         self.events = EventBus(self)
         self.status_segments: list[Callable[["InkmillApp"], str | None]] = []
         self.services: dict[str, Any] = {}

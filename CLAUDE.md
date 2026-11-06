@@ -149,6 +149,36 @@ across long writing sessions.
   resume memory, unsaved copy, live tmux run); tests use
   `tests/fake_claude.py`.
 
+## Self-update (0.4.1)
+
+Aaron asked (2026-11-06) for update checking and self-update where
+feasible, with a notice of what to do where not.
+
+- `src/inkmill/updates.py`. Newest version = `__version__` in
+  `src/inkmill/__init__.py` on main (raw.githubusercontent, like the plugin
+  index); notes = CHANGELOG sections newer than the running version.
+  `INKMILL_UPDATE_URL` overrides the folder URL (tests use a `file://`
+  folder; conftest points it at a missing folder so no test reaches GitHub).
+- `detect()` reads `direct_url.json` and `<prefix>/pipx_metadata.json`.
+  pipx: `pipx upgrade inkmill` (keeps injections), but `pipx runpip inkmill
+  install --upgrade git+<url>` when the venv or pipx's recorded spec names a
+  branch or tag, because `pipx upgrade` reinstalls the recorded spec. A
+  live test caught that: it silently went back to the pinned branch.
+  pip: `python -m pip install --upgrade [--user] git+<url>`; the bare
+  `git+URL` form, since pip 24 rejects `name @ git+file:///...`.
+  Editable installs, PEP 668 system Pythons, unwritable site-packages and
+  missing pip get the manual command and a reason.
+- Windows: never in-process (locked files). Update and Quit sets
+  `app.pending_update`; `__main__.after_exit` starts PowerShell in a new
+  console that `Wait-Process`es on Inkmill's pid, then runs the command.
+  Untested on real Windows.
+- After installing, `installed_version()` asks a fresh interpreter, and
+  the update counts as done only if that is newer. Restart is `os.execv` of
+  `python -m inkmill <session paths>` after the normal quit flow (the
+  in-process plugin restart cannot load new core code).
+- Verified live in a scratch pipx home and venv: a pinned pipx install, the
+  in-app Install then Restart into the new version, `--update` for pip.
+
 ## Status
 
 - 0.1.0 committed and pushed 2026-11-02. 52 tests pass (pytest with
@@ -156,7 +186,8 @@ across long writing sessions.
   3.13.
 - 0.2.0 (plugin manager, Binder, Git Sync, Themes) merged by Aaron as PR #1.
 - 0.3.0 (writer plugins) merged by Aaron as PR #2.
-- 0.4.0 (Claude Code provider, story bible) on branch `claude-code-ai-0.4`.
+- 0.4.0 (Claude Code provider, story bible) merged by Aaron as PR #3.
+- 0.4.1 (update checking and self-update) on branch `self-update-0.4.1`.
 - Not yet exercised by a human on Windows Terminal or Termux. L-2026-07-19-001
   applies: verify there before calling it done.
 

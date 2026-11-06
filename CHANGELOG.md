@@ -1,6 +1,21 @@
 # Changelog
 
-## 0.4.0 (unreleased)
+## 0.4.1 (unreleased)
+
+- Update checking: once a day Inkmill says when a newer version is out, and
+  Help > Check for Updates shows what is new and installs it. Inkmill works
+  out how it was installed (pipx, pip in a virtual environment or the user
+  folder, a source folder) and runs the matching command, checks that the
+  new version is installed, and offers to restart into it. On Windows the
+  update runs in a new window after Inkmill closes. Where Inkmill cannot run
+  the command (a system Python, no permission, no pip), it shows the command
+  and why, and can copy it.
+- `inkmill --check-update` and `inkmill --update` on the command line.
+- `[updates]` settings: `check` ("daily", "startup", "off"),
+  `auto_install` and `url`.
+- Help > About shows how Inkmill was installed.
+
+## 0.4.0
 
 - AI Assistant 1.1: a Claude Code provider that sends requests through your
   installed, logged-in `claude` program, so they count against your Claude

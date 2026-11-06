@@ -184,10 +184,13 @@ class TextDialog(Dialog):
 
     BINDINGS = [Binding("escape,enter,q", "cancel", show=False)]
 
-    def __init__(self, title: str, body: str | Text) -> None:
+    def __init__(self, title: str, body: str | Text, choices: Iterable[tuple[str, str]] = ()) -> None:
+        """``choices`` adds lettered buttons, as in ConfirmDialog; without
+        them there is one OK button and the dialog returns None."""
         super().__init__()
         self.title_text = title
         self.body = body
+        self.choices = list(choices)
 
     def compose(self) -> ComposeResult:
         with Vertical(classes="im-dialog"):
@@ -195,13 +198,31 @@ class TextDialog(Dialog):
             with VerticalScroll():
                 yield Static(self.body)
             with Horizontal(classes="im-buttons"):
-                yield Button("OK", id="ok", compact=True)
+                if not self.choices:
+                    yield Button("OK", id="ok", compact=True)
+                for value, label in self.choices:
+                    yield Button(label.replace("&", ""), id=f"choice-{value}", compact=True)
 
     def on_mount(self) -> None:
-        self.query_one(VerticalScroll).focus()
+        if self.choices:
+            self.query(Button).first().focus()
+        else:
+            self.query_one(VerticalScroll).focus()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        self.dismiss(None)
+        button_id = event.button.id or ""
+        self.dismiss(button_id.removeprefix("choice-") if button_id.startswith("choice-") else None)
+
+    def on_key(self, event: events.Key) -> None:
+        if not (self.choices and event.character):
+            return
+        for value, label in self.choices:
+            idx = label.find("&")
+            letter = label[idx + 1] if idx >= 0 else label[0]
+            if event.character.lower() == letter.lower():
+                event.stop()
+                self.dismiss(value)
+                return
 
 
 @dataclass
