@@ -1,7 +1,14 @@
 id = "ai"
 name = "AI Assistant"
-version = "1.0.0"
+version = "1.1.0"
 requires_inkmill = ">=0.3"
-summary = "Opt-in help from Claude, a local Ollama model or any OpenAI-compatible server: feedback, rewrites, synopses and a continuity check across a binder."
+summary = "Opt-in help from Claude (through Claude Code on your Claude plan, or an API key), a local Ollama model or any OpenAI-compatible server: feedback, rewrites, synopses and a continuity check across a binder."
 author = "Aaron Dodd"
 license = "MIT"
+
+[[requires]]
+command = "claude"
+optional = true
+purpose = "the Claude Code provider, which uses your Claude plan instead of an API key"
+url = "https://code.claude.com/docs/en/setup"
+install = { windows = "irm https://claude.ai/install.ps1 | iex, then run claude once and log in", macos = "curl -fsSL https://claude.ai/install.sh | bash (or brew install --cask claude-code), then run claude once and log in", linux = "curl -fsSL https://claude.ai/install.sh | bash, then run claude once and log in", termux = "no official Android build; see the AI Assistant README for the Termux options" }

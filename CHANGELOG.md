@@ -1,6 +1,20 @@
 # Changelog
 
-## 0.3.0 (unreleased)
+## 0.4.0 (unreleased)
+
+- AI Assistant 1.1: a Claude Code provider that sends requests through your
+  installed, logged-in `claude` program, so they count against your Claude
+  plan rather than API billing. Each project (a binder, or a document's
+  folder) keeps one conversation that later requests continue, and Claude
+  may read the project's files itself (read-only, confined to the project)
+  instead of being sent them; unsaved changes are handed over as a copy.
+  New Conversation and Continue in Claude Code manage the conversation.
+- A story bible per project (`Story Bible.md`), read with every AI request
+  by every provider and checked by Continuity Check; B in the reply panel
+  adds a reply to it.
+- The AI consent dialog wraps its text instead of cutting it off.
+
+## 0.3.0
 
 Writing tools, as plugins:
 
