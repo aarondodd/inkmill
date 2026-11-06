@@ -5,17 +5,32 @@
     {
       "id": "ai",
       "name": "AI Assistant",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "requires_inkmill": ">=0.3",
-      "summary": "Opt-in help from Claude, a local Ollama model or any OpenAI-compatible server: feedback, rewrites, synopses and a continuity check across a binder.",
+      "summary": "Opt-in help from Claude (through Claude Code on your Claude plan, or an API key), a local Ollama model or any OpenAI-compatible server: feedback, rewrites, synopses and a continuity check across a binder.",
       "author": "Aaron Dodd",
       "license": "MIT",
+      "requires": [
+        {
+          "command": "claude",
+          "optional": true,
+          "purpose": "the Claude Code provider, which uses your Claude plan instead of an API key",
+          "url": "https://code.claude.com/docs/en/setup",
+          "install": {
+            "windows": "irm https://claude.ai/install.ps1 | iex, then run claude once and log in",
+            "macos": "curl -fsSL https://claude.ai/install.sh | bash (or brew install --cask claude-code), then run claude once and log in",
+            "linux": "curl -fsSL https://claude.ai/install.sh | bash, then run claude once and log in",
+            "termux": "no official Android build; see the AI Assistant README for the Termux options"
+          }
+        }
+      ],
       "path": "ai",
       "files": {
-        "README.md": "2f4d9de3b2945c6ead11a6e21353dd34a0d6533a0eb2019c4c227d67d46a5ee5",
-        "__init__.py": "3104452c6f1093730c5849a9a9b0cd0cb7c06a532b9cd20b6dc17b804d5fe187",
-        "client.py": "cc23ef9d5f1ac969fb01c6150cf0db38297a0241663649f6b19b792284904b41",
-        "plugin.toml": "54e8b4edf02b29449857af12a246d43e1a78b57ac868a7c4b59b9377e248ee46"
+        "README.md": "bd09cff1710058cfb526dce6e16dd47a5530701a616fcb437e95cf5076f4859f",
+        "__init__.py": "aebafab1472d37fba85c9ec68c35e5c42cc12141a5b4464c38ad4d9de8930dc5",
+        "claudecode.py": "4d7957de7e41094ac81efcae3fa9927aa108c7003fcd97412f5b4ebae1683e9f",
+        "client.py": "d3015312f9bdbb007041c44975ac43dc7b1c17673f19c096b31134c95a2868cd",
+        "plugin.toml": "afb9ae030922cbaa629d395ad8cc3a94522d3a09305a82faa6938989a9c142fc"
       }
     },
     {

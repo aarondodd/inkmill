@@ -25,7 +25,7 @@ TIMEOUT = 120
 class Provider:
     id: str
     name: str
-    kind: str  # "anthropic" or "openai"
+    kind: str  # "anthropic", "openai" or "cli" (the Claude Code program)
     base_url: str
     model: str
     key_env: str = ""
@@ -33,6 +33,8 @@ class Provider:
 
     @property
     def host(self) -> str:
+        if self.kind == "cli":
+            return "claude-code"
         return urlparse(self.base_url).netloc or self.base_url
 
 
@@ -40,11 +42,15 @@ PRESETS = {
     "anthropic": Provider("anthropic", "Claude (Anthropic)", "anthropic", "https://api.anthropic.com", "claude-sonnet-5-5", "ANTHROPIC_API_KEY"),
     "ollama": Provider("ollama", "Ollama, on this computer", "openai", "http://localhost:11434/v1", "llama3.1", needs_key=False),
     "openai": Provider("openai", "OpenAI-compatible server", "openai", "https://api.openai.com/v1", "", "OPENAI_API_KEY"),
+    # base_url holds the program to run; the model may stay empty for Claude Code's own default.
+    "claude-code": Provider("claude-code", "Claude Code, your Claude plan", "cli", "claude", "", needs_key=False),
 }
 
 
 def provider_from_settings(table: dict) -> Provider:
     preset = PRESETS.get(str(table.get("provider", "anthropic")), PRESETS["anthropic"])
+    if preset.kind == "cli":
+        return replace(preset, base_url=str(table.get("command") or preset.base_url).strip(), model=str(table.get("model") or ""))
     return replace(
         preset,
         base_url=str(table.get("base_url") or preset.base_url).rstrip("/"),
@@ -119,6 +125,8 @@ def stream(
     about the same long text is cheaper and faster after the first.
     Returns the whole reply.
     """
+    if provider.kind == "cli":
+        raise AIError("Claude Code requests go through claudecode.run, not stream")
     if provider.needs_key and not key:
         raise AIError("no API key; set one with AI > Set API Key")
     if not provider.model:

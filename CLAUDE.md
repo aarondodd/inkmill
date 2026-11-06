@@ -119,14 +119,44 @@ and manifest `[[requires]]` (`command` or `any_of`, `optional`, per-platform
   stored in settings. Tested against a local fake server only.
 - Word Goal moved back to `examples/plugins/word_goal/` (Progress replaces it).
 
+## Claude Code provider (0.4.0)
+
+Aaron asked (2026-11-06) for the AI plugin to use the `claude` CLI headless so
+requests bill to his Claude plan (he runs claude on Termux), with memory
+across long writing sessions.
+
+- `plugins/ai/claudecode.py` runs `claude -p` per request: stream-json with
+  partial messages, `--strict-mcp-config`, `--setting-sources ""` (no user
+  settings, hooks or CLAUDE.md; verified for project CLAUDE.md), and
+  `--tools ""` or `Read,Grep,Glob` plus `--allowedTools` and `--add-dir`.
+  Never `--bare` (it refuses OAuth). Prompt on stdin (Windows argv cap; no
+  stdin makes claude wait 3 s). Errors arrive on stdout as a `result` with
+  `is_error`; "No conversation found" raises SessionMissing and the plugin
+  starts a new session.
+- One session per project folder (binder's folder, else the document's
+  folder), ids in `<state>/ai/claude-code-sessions.json`; `--session-id` on
+  the first turn, `--resume` after. Claude Code files sessions by cwd, so
+  every run starts in the project folder.
+- The system prompt is frozen at the first request of a conversation
+  (`--system-prompt-snapshot` default on), so current text always goes in
+  the message. With file access, prompts name files; unsaved buffers are
+  written to `<state>/ai/current/` and that folder is passed with --add-dir.
+- Story bible (`Story Bible.md` in the project folder) for every provider;
+  B in the reply panel appends a reply.
+- Termux has no official claude build; `command` accepts a full command
+  line. A proot-distro claude only works if Inkmill runs in the same distro.
+- Verified end to end against the real claude 2.1.318 (file reads,
+  resume memory, unsaved copy, live tmux run); tests use
+  `tests/fake_claude.py`.
+
 ## Status
 
 - 0.1.0 committed and pushed 2026-11-02. 52 tests pass (pytest with
   Textual's pilot), green in CI on ubuntu, windows and macos with 3.11 and
   3.13.
 - 0.2.0 (plugin manager, Binder, Git Sync, Themes) merged by Aaron as PR #1.
-- 0.3.0 (writer plugins) on branch `writer-plugins-0.3`, one PR at Aaron's
-  request. Awaiting his testing.
+- 0.3.0 (writer plugins) merged by Aaron as PR #2.
+- 0.4.0 (Claude Code provider, story bible) on branch `claude-code-ai-0.4`.
 - Not yet exercised by a human on Windows Terminal or Termux. L-2026-07-19-001
   applies: verify there before calling it done.
 
