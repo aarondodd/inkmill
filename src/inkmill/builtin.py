@@ -231,13 +231,15 @@ async def recover(app: "InkmillApp") -> None:
     app.status.flash("Recovered. Save to keep it.")
 
 
-async def quit_app(app: "InkmillApp") -> None:
+async def quit_app(app: "InkmillApp") -> bool:
+    """Quit after settling unsaved documents; False if the person cancelled."""
     for doc in list(app.docs):
         if not await app.confirm_discard(doc):
-            return
+            return False
     for doc in app.docs:
         app.recovery.clear(doc)
     await app.shutdown()
+    return True
 
 
 # -- Edit ----------------------------------------------------------------
@@ -586,6 +588,166 @@ async def check_plugin_updates(app: "InkmillApp") -> None:
         app.notify(f"Plugin updates: {', '.join(updates)}. View > Plugins installs them.", title="Plugins", timeout=10)
 
 
+# -- Inkmill updates ---------------------------------------------------------
+
+
+def _update_record(app: "InkmillApp") -> dict:
+    record = app.state.data.get("updates")
+    if not isinstance(record, dict):
+        record = {}
+        app.state.data["updates"] = record
+    return record
+
+
+async def _fetch_release(app: "InkmillApp"):
+    import asyncio
+    import time
+
+    from . import updates
+
+    release = await asyncio.to_thread(updates.fetch_release, updates.source_url(app.settings.updates))
+    record = _update_record(app)
+    record["checked"] = time.time()
+    record["latest"] = release.version
+    app.state.save()
+    return release
+
+
+async def _plugin_updates(app: "InkmillApp") -> list[str]:
+    import asyncio
+
+    from .pluginmanager import PluginSourceError, Source, build_rows, fetch_index, installed_plugins
+
+    try:
+        index = await asyncio.to_thread(fetch_index, Source.from_settings(app.settings.plugin_manager))
+    except PluginSourceError:
+        return []
+    return [r.name for r in build_rows(index, installed_plugins(app.plugin_dir)) if r.has_update]
+
+
+async def check_for_updates(app: "InkmillApp") -> None:
+    """Help > Check for Updates: say what is new and install it where possible."""
+    import asyncio
+
+    from . import updates
+
+    app.status.flash("Checking for updates...", seconds=30)
+    try:
+        release = await _fetch_release(app)
+    except updates.UpdateError as exc:
+        app.status.clear_flash()
+        await app.push_screen_wait(TextDialog("Check for Updates", Text(f"Could not check for updates.\n\n{exc}")))
+        return
+    method = await asyncio.to_thread(updates.detect)
+    plugins = await _plugin_updates(app)
+    app.status.clear_flash()
+    body = updates.describe(release, method)
+    if plugins:
+        body += f"\n\nPlugin updates: {', '.join(plugins)}. View > Plugins installs them."
+    if not release.newer_than():
+        await app.push_screen_wait(TextDialog("Check for Updates", Text(body)))
+        return
+    if app.pending_update is not None:
+        body += "\n\nThe update is already set to run when you quit Inkmill."
+    if method.automatic:
+        choices = [("install", "&Install now"), ("later", "&Later")]
+    elif method.deferred:
+        choices = [("quit", "&Update and quit"), ("later", "&Later"), ("copy", "&Copy command")]
+    else:
+        choices = [("copy", "&Copy command"), ("close", "C&lose")]
+    choice = await app.push_screen_wait(TextDialog(f"Inkmill {release.version}", Text(body), choices))
+    if choice == "copy":
+        app.copy_to_clipboard("\n".join(method.manual))
+        app.status.flash("Copied the update command.")
+    elif choice == "install":
+        await install_update(app, release, method)
+    elif choice == "quit":
+        app.pending_update = method
+        if not await quit_app(app):
+            app.notify("The update runs when you quit Inkmill.", title="Update", timeout=8)
+
+
+async def install_update(app: "InkmillApp", release, method, *, ask_restart: bool = True) -> bool:
+    """Run the update command, confirm the new version is installed, offer a restart."""
+    import asyncio
+
+    from . import updates
+
+    app.status.flash(f"Installing Inkmill {release.version}...", seconds=900)
+    try:
+        await asyncio.to_thread(updates.install, method)
+    except updates.UpdateError as exc:
+        app.status.clear_flash()
+        body = f"{exc}\n\nTo update by hand, run:\n\n" + "\n".join(f"  {line}" for line in method.manual)
+        if ask_restart:
+            choice = await app.push_screen_wait(
+                TextDialog("Update Failed", Text(body), [("copy", "&Copy command"), ("close", "C&lose")])
+            )
+            if choice == "copy":
+                app.copy_to_clipboard("\n".join(method.manual))
+        else:
+            app.notify(f"Inkmill {release.version} could not be installed. Help > Check for Updates shows why.", severity="warning", timeout=10)
+        return False
+    installed = await asyncio.to_thread(updates.installed_version)
+    app.status.clear_flash()
+    if not updates.is_newer(installed, __version__):
+        message = (
+            f"The update command finished, but Inkmill {installed or 'of an unknown version'} is still installed. "
+            "To update by hand, run:\n\n" + "\n".join(f"  {line}" for line in method.manual)
+        )
+        if ask_restart:
+            await app.push_screen_wait(TextDialog("Update Not Installed", Text(message)))
+        else:
+            app.notify(message, severity="warning", timeout=12)
+        return False
+    app.update_installed = installed
+    if not ask_restart:
+        app.notify(f"Inkmill {installed} is installed. It starts the next time you open Inkmill.", title="Update", timeout=10)
+        return True
+    choice = await app.push_screen_wait(
+        ConfirmDialog(
+            "Update Installed",
+            f"Inkmill {installed} is installed.\nRestart now to use it? Unsaved documents are offered for saving first.",
+            [("restart", "&Restart now"), ("later", "&Later")],
+        )
+    )
+    if choice == "restart":
+        app.after_exit = "restart"
+        if not await quit_app(app):
+            app.after_exit = None
+    else:
+        app.status.flash(f"Inkmill {installed} starts the next time you open Inkmill.", seconds=6)
+    return True
+
+
+async def startup_update_check(app: "InkmillApp") -> None:
+    """Once a day by default ([updates] check), say when a new Inkmill is out."""
+    import asyncio
+    import time
+
+    from . import updates
+
+    table = app.settings.updates
+    if not updates.due(_update_record(app), str(table.get("check", "daily")), time.time()):
+        return
+    try:
+        release = await _fetch_release(app)
+    except updates.UpdateError:
+        return
+    if not release.newer_than():
+        return
+    method = await asyncio.to_thread(updates.detect)
+    if table.get("auto_install") is True and method.automatic:
+        await install_update(app, release, method, ask_restart=False)
+    elif table.get("auto_install") is True and method.deferred:
+        app.pending_update = method
+        app.notify(f"Inkmill {release.version} is installed when you quit.", title="Update", timeout=10)
+    elif method.possible:
+        app.notify(f"Inkmill {release.version} is available. Help > Check for Updates installs it.", title="Update", timeout=10)
+    else:
+        app.notify(f"Inkmill {release.version} is available. Help > Check for Updates shows how to update.", title="Update", timeout=10)
+
+
 async def show_keys(app: "InkmillApp") -> None:
     table = Table(show_header=True, header_style="bold", box=None, padding=(0, 2))
     table.add_column("Key")
@@ -636,6 +798,8 @@ async def markdown_help(app: "InkmillApp") -> None:
 
 
 async def about(app: "InkmillApp") -> None:
+    from .updates import detect as detect_install
+
     lines = [
         f"{APP_NAME} {__version__}",
         "",
@@ -645,6 +809,7 @@ async def about(app: "InkmillApp") -> None:
         f"Platform: {platform_name()}",
         f"Settings: {Settings.path()}",
         f"Plugins:  {config_dir() / 'plugins'}",
+        f"Installed with: {detect_install().label}",
     ]
     for info in app.plugin_info:
         status = "error" if info.error else (info.skipped or "loaded")
@@ -730,6 +895,7 @@ def register_builtins(app: "InkmillApp") -> None:
 
     c("help.keys", "&Keys", "f1")(show_keys)
     c("help.markdown", "&Markdown Reference")(markdown_help)
+    c("help.updates", "Check for &Updates...", description="See whether a newer Inkmill is out, and install it")(check_for_updates)
     c("help.about", "&About")(about)
 
     S = Separator
@@ -762,4 +928,5 @@ def register_builtins(app: "InkmillApp") -> None:
         M("view.palette"), M("view.plugins"), M("view.settings"),
     ]))
     app.events.on("ready", check_plugin_updates)
-    app.menus.add_menu(Menu("help", "&Help", [M("help.keys"), M("help.markdown"), S(), M("help.about")]))
+    app.events.on("ready", startup_update_check)
+    app.menus.add_menu(Menu("help", "&Help", [M("help.keys"), M("help.markdown"), S(), M("help.updates"), M("help.about")]))

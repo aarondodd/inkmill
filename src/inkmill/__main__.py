@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -23,6 +24,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--paths", action="store_true", help="show settings, plugin and state locations and exit")
     parser.add_argument("--plugins", action="store_true", help="list plugins and whether they load, then exit")
     parser.add_argument("--no-plugins", action="store_true", help="start without loading plugins")
+    parser.add_argument("--check-update", action="store_true", help="say whether a newer Inkmill is out, then exit")
+    parser.add_argument("--update", action="store_true", help="install a newer Inkmill if there is one, then exit")
     return parser
 
 
@@ -56,6 +59,9 @@ def main(argv: list[str] | None = None) -> int:
                     print(f"    missing {kind} program {req.name}" + (f"; install: {hint}" if hint else ""))
         return 0
 
+    if args.check_update or args.update:
+        return update_from_command_line(install=args.update)
+
     if args.list_styles:
         from .export.html import available_styles
 
@@ -85,6 +91,67 @@ def main(argv: list[str] | None = None) -> int:
     return run_app(args.files, load_plugins=not args.no_plugins)
 
 
+def update_from_command_line(*, install: bool) -> int:
+    from . import updates
+    from .config import Settings
+
+    try:
+        release = updates.fetch_release(updates.source_url(Settings.load().updates))
+    except updates.UpdateError as exc:
+        print(f"inkmill: could not check for updates: {exc}", file=sys.stderr)
+        return 1
+    method = updates.detect()
+    if not install or not release.newer_than():
+        print(updates.describe(release, method))
+        return 0
+    if method.automatic:
+        print(f"Installing Inkmill {release.version} with {method.label}...")
+        try:
+            updates.install(method)
+        except updates.UpdateError as exc:
+            print(f"inkmill: {exc}", file=sys.stderr)
+            print("To update by hand, run:\n" + "\n".join(f"  {line}" for line in method.manual), file=sys.stderr)
+            return 1
+        installed = updates.installed_version()
+        if not updates.is_newer(installed, __version__):
+            print(f"inkmill: the update command finished, but {installed or 'an unknown version'} is still installed", file=sys.stderr)
+            return 1
+        print(f"Inkmill {installed} is installed.")
+        return 0
+    if method.deferred:
+        try:
+            updates.start_deferred(method)
+        except updates.UpdateError as exc:
+            print(f"inkmill: {exc}", file=sys.stderr)
+            return 1
+        print(f"Inkmill {release.version} is being installed in a new window.")
+        return 0
+    print(f"Inkmill {release.version} is available. {method.reason}\nTo update, run:")
+    print("\n".join(f"  {line}" for line in method.manual))
+    return 1
+
+
+def after_exit(app, load_plugins: bool) -> None:
+    """Run what the update commands asked for once the app has closed."""
+    from . import updates
+
+    if app.pending_update is not None:
+        try:
+            updates.start_deferred(app.pending_update)
+            print("Inkmill is being updated in a new window.")
+        except updates.UpdateError as exc:
+            print(f"inkmill: {exc}", file=sys.stderr)
+            print("To update by hand, run:\n" + "\n".join(f"  {line}" for line in app.pending_update.manual), file=sys.stderr)
+    elif app.after_exit == "restart":
+        # A new process, because the running one still holds the old modules.
+        argv = [sys.executable, "-m", "inkmill"]
+        if not load_plugins:
+            argv.append("--no-plugins")
+        argv += app.state.session
+        sys.stdout.flush()
+        os.execv(sys.executable, argv)
+
+
 def run_app(files: list[Path], *, load_plugins: bool = True) -> int:
     """Run Inkmill, starting it again in place whenever it asks to restart.
 
@@ -102,6 +169,7 @@ def run_app(files: list[Path], *, load_plugins: bool = True) -> int:
         app.run()
         handoff = app.restart_handoff
         if handoff is None:
+            after_exit(app, load_plugins)
             return app.return_code or 0
         purge_plugin_modules()
 
