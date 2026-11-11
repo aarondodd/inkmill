@@ -18,6 +18,63 @@ if TYPE_CHECKING:
 Location = tuple[int, int]
 
 
+_WORD_CHARS = "'\u2019-_"
+
+
+def _is_word_char(ch: str) -> bool:
+    return ch.isalnum() or ch in _WORD_CHARS
+
+
+def _word_at(line: str, col: int) -> tuple[int, int] | None:
+    """Columns of the word the cursor is in or touching, or None."""
+    if not ((col > 0 and _is_word_char(line[col - 1])) or (col < len(line) and _is_word_char(line[col]))):
+        return None
+    ws = col
+    while ws > 0 and _is_word_char(line[ws - 1]):
+        ws -= 1
+    we = col
+    while we < len(line) and _is_word_char(line[we]):
+        we += 1
+    # Apostrophes, hyphens and underscores join words but do not end them.
+    while ws < we and line[ws] in _WORD_CHARS:
+        ws += 1
+    while we > ws and line[we - 1] in _WORD_CHARS:
+        we -= 1
+    return (ws, we) if we > ws else None
+
+
+def _closes_here(line: str, col: int, left: str, right: str) -> bool:
+    """Whether ``right`` at ``col`` closes a ``left`` opened earlier on the line."""
+    if col == 0 or line[col : col + len(right)] != right or line[col - 1].isspace():
+        return False
+    opening = line.rfind(left, 0, col)
+    if opening < 0 or opening + len(left) >= col:
+        return False
+    return _has_markers(line, opening + len(left), col, left, right)
+
+
+def _has_markers(text: str, s: int, e: int, left: str, right: str) -> bool:
+    """Whether [s, e) is wrapped in exactly ``left``/``right``.
+
+    For * and _, the run of marker characters decides: one star is italic,
+    two bold, three both. So italic inside **bold** is not "already italic",
+    and toggling it gives ***bold italic*** rather than unwrapping a star.
+    """
+    if s < len(left) or text[s - len(left) : s] != left or text[e : e + len(right)] != right:
+        return False
+    if left == right and left and left[0] in "*_" and set(left) == {left[0]}:
+        mark = left[0]
+        before = 0
+        while s - before - 1 >= 0 and text[s - before - 1] == mark:
+            before += 1
+        after = 0
+        while e + after < len(text) and text[e + after] == mark:
+            after += 1
+        run = min(before, after)
+        return run == len(left) or run == 3
+    return True
+
+
 @lru_cache(maxsize=4096)
 def _byte_offsets(line: str) -> tuple[int, ...]:
     """UTF-8 byte offset of each character column in ``line``, plus the end."""
@@ -37,10 +94,13 @@ class _RichHighlights(defaultdict):
     decorations) is drawn over them.
     """
 
-    def __init__(self, document, kinds: list[str]) -> None:
+    SELECTED = "rich.selected"
+
+    def __init__(self, document, kinds: list[str], selection=None) -> None:
         super().__init__(list)
         self._document = document
         self._kinds = kinds
+        self._selection = selection
 
     def __bool__(self) -> bool:
         return True
@@ -60,7 +120,41 @@ class _RichHighlights(defaultdict):
                         (offsets[min(start, last)], None if end is None else offsets[min(end, last)], name)
                     )
         self[row] = result
+        self._add_selected(row, result)
         return result
+
+    def set_selection(self, selection) -> None:
+        """Keep selected text in the selection colors.
+
+        TextArea draws highlights over the selection, so a rich color (the
+        italic magenta, say) would otherwise replace the selection's text
+        color and become hard to read on the selection background.
+        """
+        rows = set()
+        for sel in (self._selection, selection):
+            if sel is not None and sel.start != sel.end:
+                (r1, _), (r2, _) = sorted(sel)
+                rows.update(range(r1, r2 + 1))
+        self._selection = selection
+        for row in rows:
+            if row in self:
+                spans = [h for h in self[row] if h[2] != self.SELECTED]
+                self[row] = spans
+                self._add_selected(row, spans)
+
+    def _add_selected(self, row: int, spans: list) -> None:
+        sel = self._selection
+        if sel is None or sel.start == sel.end or row >= self._document.line_count:
+            return
+        (r1, c1), (r2, c2) = sorted(sel)
+        if not r1 <= row <= r2:
+            return
+        line = self._document.get_line(row)
+        offsets = _byte_offsets(line)
+        last = len(offsets) - 1
+        start = offsets[min(c1, last)] if row == r1 else 0
+        end = offsets[min(c2, last)] if row == r2 else None
+        spans.append((start, end, self.SELECTED))
 
 
 class InkEditor(TextArea):
@@ -124,6 +218,11 @@ class InkEditor(TextArea):
         self._rich = value
         self._build_highlight_map()
         self.refresh()
+
+    def _watch_selection(self, previous_selection: Selection, selection: Selection) -> None:
+        super()._watch_selection(previous_selection, selection)
+        if isinstance(self._highlights, _RichHighlights):
+            self._highlights.set_selection(selection)
 
     def undo(self) -> None:
         self._undoing = True
@@ -219,7 +318,9 @@ class InkEditor(TextArea):
             # classification covers the whole document; each line's spans are
             # worked out when it is first drawn (or decorated), so typing in
             # a long document stays fast.
-            self._highlights = _RichHighlights(self.document, richtext.line_kinds(self.document.lines))
+            self._highlights = _RichHighlights(
+                self.document, richtext.line_kinds(self.document.lines), self.selection
+            )
         if not getattr(self, "_decorations", None):
             return
         highlights = self._highlights
@@ -256,37 +357,70 @@ class InkEditor(TextArea):
 
     # -- inline markup -----------------------------------------------------
 
-    def toggle_wrap(self, left: str, right: str | None = None) -> None:
-        """Wrap or unwrap the selection with ``left``/``right`` markers."""
+    def toggle_wrap(self, left: str, right: str | None = None, placeholder: str = "") -> None:
+        """Wrap or unwrap text with ``left``/``right`` markers.
+
+        With a selection, the selection is toggled. With none, the word the
+        cursor is in or next to is toggled. Anywhere else the markers are
+        inserted around ``placeholder``, which is left selected so typing
+        replaces it; an empty pair would read as other markup (``**`` looks
+        like bold, not an empty italic).
+        """
         right = left if right is None else right
         start, end = sorted(self.selection)
         selected = self.get_text_range(start, end)
         if not selected:
-            # Unwrap if the cursor sits inside an empty pair, else insert one.
             row, col = start
             line = self.document.get_line(row)
+            # Unwrap if the cursor sits inside an empty pair.
             if line[max(0, col - len(left)) : col] == left and line[col : col + len(right)] == right:
                 self.replace("", (row, col - len(left)), (row, col + len(right)))
                 return
-            self.insert(left + right, start)
-            self.move_cursor((row, col + len(left)))
-            return
-        if selected.startswith(left) and selected.endswith(right) and len(selected) >= len(left) + len(right):
-            inner = selected[len(left) : len(selected) - len(right)]
-            result = self.replace(inner, start, end)
-            self.selection = Selection(start, result.end_location)
+            # Just before this command's own closing marker (after typing over
+            # a placeholder, say): step past it, so the next words are plain.
+            if _closes_here(line, col, left, right):
+                self.move_cursor((row, col + len(right)))
+                return
+            word = _word_at(line, col)
+            if word is not None:
+                ws, we = word
+                base = self.index_of((row, 0))
+                new_start, _ = self._toggle_markers(base + ws, base + we, left, right)
+                self.move_cursor(self.location_of(new_start + (col - ws)))
+                return
+            text = placeholder or ""
+            self.insert(left + text + right, start)
+            first = self.index_of(start) + len(left)
+            self.selection = Selection(self.location_of(first), self.location_of(first + len(text)))
             return
         s_idx, e_idx = self.index_of(start), self.index_of(end)
+        # A selection that takes in its markers is measured from the text
+        # inside them, so selecting **word** and choosing italic gives
+        # ***word*** rather than stripping one star from each side.
+        if left == right and left[0] in "*_" and set(left) == {left[0]}:
+            mark = left[0]
+            while s_idx < e_idx and selected[0] == mark and selected[-1] == mark and len(selected) > 1:
+                s_idx += 1
+                e_idx -= 1
+                selected = selected[1:-1]
+        elif selected.startswith(left) and selected.endswith(right) and len(selected) >= len(left) + len(right):
+            s_idx += len(left)
+            e_idx -= len(right)
+        new_start, new_end = self._toggle_markers(s_idx, e_idx, left, right)
+        self.selection = Selection(self.location_of(new_start), self.location_of(new_end))
+
+    def _toggle_markers(self, s_idx: int, e_idx: int, left: str, right: str) -> tuple[int, int]:
+        """Remove ``left``/``right`` around [s_idx, e_idx) if present, else add
+        them. Returns the new start and end of the inner text."""
         text = self.text
-        if text[max(0, s_idx - len(left)) : s_idx] == left and text[e_idx : e_idx + len(right)] == right:
+        inner = text[s_idx:e_idx]
+        if _has_markers(text, s_idx, e_idx, left, right):
             outer_start = self.location_of(s_idx - len(left))
             outer_end = self.location_of(e_idx + len(right))
-            result = self.replace(selected, outer_start, outer_end)
-            self.selection = Selection(outer_start, result.end_location)
-            return
-        result = self.replace(left + selected + right, start, end)
-        inner_start = self.location_of(s_idx + len(left))
-        self.selection = Selection(inner_start, self.location_of(s_idx + len(left) + len(selected)))
+            self.replace(inner, outer_start, outer_end)
+            return s_idx - len(left), e_idx - len(left)
+        self.replace(left + inner + right, self.location_of(s_idx), self.location_of(e_idx))
+        return s_idx + len(left), e_idx + len(left)
 
     # -- block markup ------------------------------------------------------
 

@@ -386,6 +386,9 @@ def syntax_theme(theme: Theme, decorations: dict | None = None, *, emphasis_colo
             "rich.done": Style(color=dim, strike=True),
             "rich.table_header": Style(bold=True, color=bold),
             "rich.frontmatter": Style(color=dim),
+            # Drawn over rich colors inside a selection, so selected text
+            # keeps the selection's colors.
+            "rich.selected": Style(color=v["im-select-fg"], bgcolor=v["im-select-bg"]),
             **extra,
         },
     )

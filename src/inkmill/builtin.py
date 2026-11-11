@@ -334,11 +334,11 @@ def go_back(app: "InkmillApp") -> None:
 # -- Format ----------------------------------------------------------------
 
 
-def _wrap(left: str, right: str | None = None):
+def _wrap(left: str, right: str | None = None, placeholder: str = ""):
     def handler(app: "InkmillApp") -> None:
         editor = app.active_editor
         if editor is not None:
-            editor.toggle_wrap(left, right)
+            editor.toggle_wrap(left, right, placeholder)
 
     return handler
 
@@ -883,10 +883,10 @@ def register_builtins(app: "InkmillApp") -> None:
     c("edit.goto", "&Go To Line...", "ctrl+g", enabled=_has_doc)(goto_line)
     c("edit.go_back", "Go &Back", "alt+b", enabled=_has_doc, description="Return from a footnote")(go_back)
 
-    c("format.bold", "&Bold", "ctrl+b", enabled=_has_doc)(_wrap("**"))
-    c("format.italic", "&Italic", "ctrl+e", enabled=_has_doc)(_wrap("*"))
-    c("format.strike", "&Strikethrough", enabled=_has_doc)(_wrap("~~"))
-    c("format.code", "Inline &Code", enabled=_has_doc)(_wrap("`"))
+    c("format.bold", "&Bold", "ctrl+b", enabled=_has_doc)(_wrap("**", placeholder="bold text"))
+    c("format.italic", "&Italic", "ctrl+e", enabled=_has_doc)(_wrap("*", placeholder="italic text"))
+    c("format.strike", "&Strikethrough", enabled=_has_doc)(_wrap("~~", placeholder="struck text"))
+    c("format.code", "Inline &Code", enabled=_has_doc)(_wrap("`", placeholder="code"))
     c("format.heading1", "Heading &1", "alt+1", enabled=_has_doc)(_heading(1))
     c("format.heading2", "Heading &2", "alt+2", enabled=_has_doc)(_heading(2))
     c("format.heading3", "Heading &3", "alt+3", enabled=_has_doc)(_heading(3))

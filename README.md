@@ -113,6 +113,12 @@ ones added by plugins.
 
 Ctrl+I is missing on purpose: most terminals send it as Tab.
 
+Bold, Italic, Strikethrough and Inline Code (Format menu) work on the
+selection, or on the word the cursor is in. Anywhere else they insert the
+markup around placeholder text, such as `*italic text*`, with the placeholder
+selected so typing replaces it. Choosing the same command again at the end of
+that text steps past the closing marker, so what you type next is plain.
+
 ### Rich view and reading view
 
 View > Rich View (Alt+F3, the key WordPerfect used for Reveal Codes) formats
