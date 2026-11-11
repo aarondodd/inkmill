@@ -179,6 +179,34 @@ feasible, with a notice of what to do where not.
 - Verified live in a scratch pipx home and venv: a pinned pipx install, the
   in-app Install then Restart into the new version, `--update` for pip.
 
+## Rich view and reading view (0.5.0)
+
+Aaron asked (2026-11-11) for a formatted editor view, toggleable against raw
+Markdown. He chose step 1 (styled source, nothing hidden) plus a read-only
+reading view; concealing markup on non-cursor lines (live preview) was
+deferred because TextArea has no display-to-source mapping and it would mean
+building on Textual internals.
+
+- `src/inkmill/richtext.py`: `line_kinds()` is the only whole-document pass
+  (front matter, fences, tables, setext, rules); `spans_for(line, kind)` is
+  lru-cached per line. Style names `rich.*` live in `themes.syntax_theme`;
+  a test asserts every name used exists in every built-in theme.
+- `InkEditor` swaps `_highlights` for `_RichHighlights`, whose `__missing__`
+  styles a row when TextArea first draws it (`__bool__` is True because
+  render_line checks the dict's truthiness). Rich mode skips tree-sitter,
+  which made it faster than raw on an 82k-word file (101 vs 148 ms per
+  pilot keystroke). Plugin decorations are appended after, so they draw on top.
+- Tables tidy while typing in rich mode only, via `tidy_table_while_typing`
+  from `on_text_area_changed`, keeping the cursor's cell and offset. Undo
+  and redo set `_undoing` so the next change is not re-tidied (otherwise
+  undo would loop). Undo inside a table steps per keystroke.
+- Reading view: `screens/reading.py`, Textual `Markdown` widget. `reading_text`
+  keeps the line count (front matter blanked, footnote refs to superscripts,
+  defs joined with hard breaks, task boxes to check boxes) so `source_range`
+  finds the cursor's block. Keys Alt+F3 (rich, WordPerfect's Reveal Codes)
+  and Shift+F7 (reading); menu letters R&ich and Re&ading because the Themes
+  plugin holds G and R in the View menu.
+
 ## Status
 
 - 0.1.0 committed and pushed 2026-11-02. 52 tests pass (pytest with
@@ -188,6 +216,8 @@ feasible, with a notice of what to do where not.
 - 0.3.0 (writer plugins) merged by Aaron as PR #2.
 - 0.4.0 (Claude Code provider, story bible) merged by Aaron as PR #3.
 - 0.4.1 (update checking and self-update) merged by Aaron as PR #4.
+- 0.4.2 (status line path clipping, cursor scroll fix) in PR #5.
+- 0.5.0 (rich view, reading view) stacked on PR #5.
 - Not yet exercised by a human on Windows Terminal or Termux. L-2026-07-19-001
   applies: verify there before calling it done.
 

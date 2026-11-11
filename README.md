@@ -109,8 +109,30 @@ ones added by plugins.
 | Ctrl+F / F3 | Find / find next | Ctrl+R | Replace |
 | Ctrl+T | Between the text and the side panel | Ctrl+P | Command palette |
 | Ctrl+G | Go to line, or page:line | F9 | Preview in browser |
+| Alt+F3 | Rich view on or off | Shift+F7 | Reading view |
 
 Ctrl+I is missing on purpose: most terminals send it as Tab.
+
+### Rich view and reading view
+
+View > Rich View (Alt+F3, the key WordPerfect used for Reveal Codes) formats
+Markdown while you write. Bold text is bold, italics are italic, headings,
+links, code, quotes and finished tasks stand out, and the markup characters
+(`**`, `#`, `|`, `[^1]`) are dimmed rather than hidden, so the cursor, word
+wrap and undo behave exactly as in the raw view. Tables line up as you type
+in them. The setting is remembered; switch it off to edit plain Markdown.
+
+![Rich view](docs/screenshots/rich-view.png)
+
+View > Reading View (Shift+F7) shows the document fully formatted and
+read-only: markup hidden, tables drawn with borders, footnote references as
+superscripts and task boxes as check boxes. It opens at the paragraph the
+cursor is in. Esc, Q or Shift+F7 returns to the text.
+
+![Reading view](docs/screenshots/reading-view.png)
+
+Italic text needs a terminal that draws it. Windows Terminal, most Linux
+terminals and Termux do; the old Windows console window does not.
 
 ### Markdown
 
@@ -212,6 +234,7 @@ export_style = "classic"
 typographer = true        # curly quotes and dashes in HTML output
 restore_session = true
 recovery_interval = 30    # seconds, 0 turns crash recovery off
+rich_view = false         # format Markdown while you write (View > Rich View)
 
 [keys]                    # command id = comma-separated keys
 "file.save" = "ctrl+s,f10"

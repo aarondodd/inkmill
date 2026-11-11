@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections import defaultdict
+from functools import lru_cache
 from typing import TYPE_CHECKING
 
 from textual._tree_sitter import TREE_SITTER
@@ -14,6 +16,51 @@ if TYPE_CHECKING:
     from ..documents import Document
 
 Location = tuple[int, int]
+
+
+@lru_cache(maxsize=4096)
+def _byte_offsets(line: str) -> tuple[int, ...]:
+    """UTF-8 byte offset of each character column in ``line``, plus the end."""
+    offsets = [0]
+    total = 0
+    for ch in line:
+        total += len(ch.encode("utf-8"))
+        offsets.append(total)
+    return tuple(offsets)
+
+
+class _RichHighlights(defaultdict):
+    """Highlights whose rich-view spans are computed per line on first use.
+
+    TextArea reads ``_highlights[row]`` while drawing a line; a row not seen
+    yet gets its rich spans then. Anything appended afterwards (plugin
+    decorations) is drawn over them.
+    """
+
+    def __init__(self, document, kinds: list[str]) -> None:
+        super().__init__(list)
+        self._document = document
+        self._kinds = kinds
+
+    def __bool__(self) -> bool:
+        return True
+
+    def __missing__(self, row: int) -> list:
+        from .. import richtext
+
+        result: list = []
+        if 0 <= row < len(self._kinds) and row < self._document.line_count:
+            line = self._document.get_line(row)
+            spans = richtext.spans_for(line, self._kinds[row])
+            if spans:
+                offsets = _byte_offsets(line)
+                last = len(offsets) - 1
+                for start, end, name in spans:
+                    result.append(
+                        (offsets[min(start, last)], None if end is None else offsets[min(end, last)], name)
+                    )
+        self[row] = result
+        return result
 
 
 class InkEditor(TextArea):
@@ -58,6 +105,57 @@ class InkEditor(TextArea):
         # Plugin highlights: owner -> [(start, end, style name)], in
         # (row, column) character locations.
         self._decorations: dict[str, list[tuple[Location, Location, str]]] = {}
+        # Rich view: Markdown formatted over the source (inkmill.richtext).
+        self._rich = False
+        self._rich_ok = document.format.markdown
+        self._undoing = False
+
+    # -- rich view ---------------------------------------------------------
+
+    @property
+    def rich(self) -> bool:
+        return self._rich
+
+    @rich.setter
+    def rich(self, value: bool) -> None:
+        value = bool(value) and self._rich_ok
+        if value == self._rich:
+            return
+        self._rich = value
+        self._build_highlight_map()
+        self.refresh()
+
+    def undo(self) -> None:
+        self._undoing = True
+        super().undo()
+
+    def redo(self) -> None:
+        self._undoing = True
+        super().redo()
+
+    def tidy_table_while_typing(self) -> bool:
+        """In the rich view, keep the table under the cursor lined up.
+
+        Called after each change. The cursor keeps its cell and its place in
+        the cell's text. Changes made by undo or redo are left alone, or undo
+        would only ever undo the tidying.
+        """
+        undoing, self._undoing = self._undoing, False
+        if not self._rich or undoing or self.selection.start != self.selection.end:
+            return False
+        from .. import richtext
+
+        row, col = self.cursor_location
+        lines = self.document.lines
+        found = richtext.table_needs_tidy(lines, row)
+        if found is None:
+            return False
+        first, last, tidied = found
+        cell, offset = richtext.cursor_cell(lines[row], col)
+        self.replace("\n".join(tidied), (first, 0), (last, len(lines[last])))
+        new_line = tidied[row - first]
+        self.move_cursor((row, richtext.cursor_column(new_line, cell, offset)))
+        return True
 
     def apply_syntax_theme(self, theme) -> None:
         from ..themes import syntax_theme
@@ -105,25 +203,29 @@ class InkEditor(TextArea):
         return list(self._decorations.get(owner, []))
 
     def _build_highlight_map(self) -> None:
-        super()._build_highlight_map()
+        rich = getattr(self, "_rich", False)
+        if not rich and isinstance(self._highlights, _RichHighlights):
+            self._highlights = defaultdict(list)
+        if not rich:
+            super()._build_highlight_map()
+        else:
+            from .. import richtext
+
+            self._line_cache.clear()
+
+            # Rich view replaces tree-sitter's Markdown colors. Only the line
+            # classification covers the whole document; each line's spans are
+            # worked out when it is first drawn (or decorated), so typing in
+            # a long document stays fast.
+            self._highlights = _RichHighlights(self.document, richtext.line_kinds(self.document.lines))
         if not getattr(self, "_decorations", None):
             return
         highlights = self._highlights
         document = self.document
         line_count = document.line_count
-        byte_cache: dict[int, list[int]] = {}
 
         def byte_offset(row: int, column: int) -> int:
-            offsets = byte_cache.get(row)
-            if offsets is None:
-                line = document.get_line(row)
-                offsets = [0]
-                total = 0
-                for ch in line:
-                    total += len(ch.encode("utf-8"))
-                    offsets.append(total)
-                byte_cache[row] = offsets
-            return offsets[min(max(column, 0), len(offsets) - 1)]
+            return _byte_offsets(document.get_line(row))[min(max(column, 0), len(document.get_line(row)))]
 
         for ranges in self._decorations.values():
             for (r1, c1), (r2, c2), name in ranges:

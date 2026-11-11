@@ -240,6 +240,7 @@ class InkmillApp(App):
         switcher.styles.max_width = width + 2 if width > 0 else None
         for editor in self.query(InkEditor):
             editor.soft_wrap = self.settings.soft_wrap
+            editor.rich = self.settings.rich_view
 
     # -- side panel --------------------------------------------------------
 
@@ -348,6 +349,7 @@ class InkmillApp(App):
         self.docs.add(doc)
         editor = InkEditor(doc, soft_wrap=self.settings.soft_wrap, highlight=self.settings.syntax_highlight)
         editor.apply_syntax_theme(self.current_theme)
+        editor.rich = self.settings.rich_view
         switcher = self.query_one("#editors", ContentSwitcher)
         await switcher.mount(editor)
         if dropped is not None:
@@ -526,6 +528,8 @@ class InkmillApp(App):
     def on_text_area_changed(self, event: TextArea.Changed) -> None:
         editor = event.text_area
         if isinstance(editor, InkEditor):
+            if editor.tidy_table_while_typing():
+                return  # the tidy posts its own Changed
             editor.doc.text = editor.text
             self.update_status()
 
