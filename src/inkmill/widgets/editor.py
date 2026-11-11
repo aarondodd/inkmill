@@ -161,7 +161,9 @@ class InkEditor(TextArea):
         from ..themes import syntax_theme
 
         styles = getattr(self.app, "decoration_styles", {}) if self.is_attached else {}
-        self.register_theme(syntax_theme(theme, styles))
+        settings = getattr(self.app, "settings", None) if self.is_attached else None
+        colors = getattr(settings, "emphasis_colors", True)
+        self.register_theme(syntax_theme(theme, styles, emphasis_colors=colors))
         self.theme = "inkmill"
 
     def on_mount(self) -> None:

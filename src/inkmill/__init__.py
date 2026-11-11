@@ -2,5 +2,5 @@
 
 __all__ = ["__version__", "APP_NAME"]
 
-__version__ = "0.5.0"
+__version__ = "0.5.1"
 APP_NAME = "Inkmill"

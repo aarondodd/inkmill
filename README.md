@@ -131,8 +131,14 @@ cursor is in. Esc, Q or Shift+F7 returns to the text.
 
 ![Reading view](docs/screenshots/reading-view.png)
 
-Italic text needs a terminal that draws it. Windows Terminal, most Linux
-terminals and Termux do; the old Windows console window does not.
+Bold and italic text are also shown in their own colors (cyan and magenta
+in the WordPerfect theme, as WordPerfect 5.1 did), because many terminals
+cannot show the weight or the slant. A bitmap or DOS font has no bold or
+italic face, and Windows Terminal draws bold as a brighter color by default,
+which white text already is. If your terminal shows real bold and italic and
+you would rather not have the colors, turn off View > Emphasis Colors.
+
+![Rich view in a terminal without bold or italic fonts](docs/screenshots/rich-view-no-bold-font.png)
 
 ### Markdown
 
@@ -235,6 +241,7 @@ typographer = true        # curly quotes and dashes in HTML output
 restore_session = true
 recovery_interval = 30    # seconds, 0 turns crash recovery off
 rich_view = false         # format Markdown while you write (View > Rich View)
+emphasis_colors = true    # also color bold and italic text (View > Emphasis Colors)
 
 [keys]                    # command id = comma-separated keys
 "file.save" = "ctrl+s,f10"

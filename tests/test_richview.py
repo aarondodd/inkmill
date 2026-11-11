@@ -100,7 +100,7 @@ def test_reading_text_keeps_line_count():
     lines = out.split("\n")
     assert lines[:3] == ["", "", ""]
     assert lines[3] == "A note.¹ Code `[^2]`"
-    assert lines[5] == "- ☑ done" and lines[6] == "- ☐ todo"
+    assert lines[5] == "- [x] done" and lines[6] == "- [ ] todo"
     assert lines[8] == "¹ First.\\" and lines[9] == "[n] Named."
 
 
@@ -199,3 +199,46 @@ async def test_reading_view_opens_at_cursor_and_closes(tmp_path):
         await pilot.pause()
         assert not isinstance(app.screen, ReadingScreen)
         assert app.focused is editor
+
+
+def test_emphasis_colors_in_syntax_theme():
+    from inkmill.themes import WORDPERFECT
+
+    on = syntax_theme(WORDPERFECT).syntax_styles
+    off = syntax_theme(WORDPERFECT, emphasis_colors=False).syntax_styles
+    assert on["rich.bold"].bold and on["rich.bold"].color is not None
+    assert on["rich.italic"].italic and on["rich.italic"].color is not None
+    assert on["rich.bold"].color != on["rich.italic"].color
+    assert off["rich.bold"].bold and off["rich.bold"].color is None
+    assert off["rich.italic"].italic and off["rich.italic"].color is None
+
+
+def test_derived_emphasis_colors_are_readable():
+    from textual.color import Color
+    from textual.theme import BUILTIN_THEMES as TEXTUAL_THEMES
+
+    from inkmill.themes import _contrast_ratio, derive_variables
+
+    for theme in list(TEXTUAL_THEMES.values()) + list(BUILTIN_THEMES):
+        values = {**derive_variables(theme), **theme.variables}
+        bg = Color.parse(theme.background or "#000000")
+        fg = Color.parse(theme.foreground or "#ffffff")
+        floor = min(4.5, _contrast_ratio(fg, bg))
+        for key in ("im-bold", "im-italic"):
+            assert _contrast_ratio(Color.parse(values[key]), bg) >= floor - 0.01, (theme.name, key)
+
+
+async def test_emphasis_colors_toggle(tmp_path):
+    path = tmp_path / "e.md"
+    path.write_text("Some **bold** and *it*.\n")
+    app = make_app(tmp_path, paths=[path], rich_view=True)
+    async with app.run_test(size=(80, 20)) as pilot:
+        editor = app.active_editor
+        assert editor._theme.syntax_styles["rich.bold"].color is not None
+        app.run_command("view.emphasis_colors")
+        await pilot.pause()
+        assert not app.settings.emphasis_colors
+        assert editor._theme.syntax_styles["rich.bold"].color is None
+        await pilot.press("shift+f7")
+        await pilot.pause(0.3)
+        assert app.screen.has_class("-plain-emphasis")

@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.5.1
+
+- Bold and italic text now also get their own colors in the rich view and
+  the reading view, so they show in terminals that cannot draw bold or
+  italic (bitmap and DOS fonts, or Windows Terminal, which draws bold as a
+  brighter color). The WordPerfect theme uses cyan for bold and magenta for
+  italic; other themes have their own, and themes without them get colors
+  worked out from their palette. View > Emphasis Colors (setting
+  `emphasis_colors`) turns the colors off.
+- Themes can set `bold` and `italic` colors in their `[ui]` table.
+- The reading view shows task boxes as `[x]` and `[ ]`, since check-box
+  characters are missing from many terminal fonts.
+
 ## 0.5.0
 
 - Rich view (View > Rich View, Alt+F3): Markdown is formatted while you
