@@ -226,7 +226,7 @@
     {
       "id": "snapshots",
       "name": "Snapshots",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "requires_inkmill": ">=0.3",
       "summary": "Named versions of a document without git: compare word by word, restore, or open a copy.",
       "author": "Aaron Dodd",
@@ -235,8 +235,8 @@
       "files": {
         "README.md": "f081290c8827c2e95a69262735cec2086afccdc1ea714fb975fb1b37e2a072f1",
         "__init__.py": "a6cbd54a197c8fd2e7b10f8d035ed0017ba43f7a29e1ee79045b86efe7960f1e",
-        "plugin.toml": "edc9ca517ea63306bb501f13c598750ef71fd269217c6a4f591147f336f6a33b",
-        "store.py": "917def00d40daffd28febb8a9740576cf9ded0ef95a168edd7149bccf714ad26"
+        "plugin.toml": "1553c61b6fdb1c1f9c74df593459a2670c2c621346d834ab066a51fee6f3ea1c",
+        "store.py": "0e9d403ac1f052b9964eaed4e9ca1242e09a3d9dd183f92f325a372a47e85509"
       }
     },
     {

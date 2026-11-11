@@ -187,7 +187,7 @@ feasible, with a notice of what to do where not.
 - 0.2.0 (plugin manager, Binder, Git Sync, Themes) merged by Aaron as PR #1.
 - 0.3.0 (writer plugins) merged by Aaron as PR #2.
 - 0.4.0 (Claude Code provider, story bible) merged by Aaron as PR #3.
-- 0.4.1 (update checking and self-update) on branch `self-update-0.4.1`.
+- 0.4.1 (update checking and self-update) merged by Aaron as PR #4.
 - Not yet exercised by a human on Windows Terminal or Termux. L-2026-07-19-001
   applies: verify there before calling it done.
 

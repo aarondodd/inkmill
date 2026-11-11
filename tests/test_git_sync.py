@@ -110,9 +110,17 @@ async def test_commit_dialog_commits_and_pushes(tmp_path):
         app.screen.query_one(Input).value = "Day one"
         app.screen.query_one(Checkbox).value = True
         await pilot.press("enter")
+
+        def pushed() -> bool:
+            # A clean, not-ahead status alone is true before the commit runs
+            # (the edit is still unsaved), so wait for the commit on the remote.
+            log = subprocess.run(
+                ["git", "log", "-1", "--format=%s", "origin/main"], cwd=work, capture_output=True, text=True
+            )
+            return log.stdout.strip() == "Day one"
+
+        assert await wait_for(pilot, pushed)
         assert await wait_for(pilot, lambda: gitcmd.status(work).ahead == 0 and not gitcmd.status(work).changes)
-    log = subprocess.run(["git", "log", "-1", "--format=%s", "origin/main"], cwd=work, capture_output=True, text=True)
-    assert log.stdout.strip() == "Day one"
     notes = gitcmd.status(work)
     assert not notes.changes
 

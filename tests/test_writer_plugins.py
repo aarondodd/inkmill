@@ -64,6 +64,16 @@ def test_snapshot_store_and_compare(tmp_path):
     assert beside.folder == doc.parent / ".snapshots" / "ch.md"
 
 
+def test_snapshots_taken_in_the_same_clock_tick_list_newest_first(tmp_path, monkeypatch):
+    doc = tmp_path / "ch.md"
+    doc.write_text("x")
+    store = store_mod.Store(doc, tmp_path / "snaps")
+    monkeypatch.setattr(store_mod.time, "time", lambda: 1_800_000_000.0)
+    store.take("one", "older")
+    store.take("two", "newer")
+    assert [s.name for s in store.list()] == ["newer", "older"]
+
+
 async def test_snapshot_restore(tmp_path):
     doc = tmp_path / "d.md"
     doc.write_text("Version one.\n")
