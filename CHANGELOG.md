@@ -7,6 +7,8 @@
   cut from the left, so the name and the unsaved marker always show.
 - Typing that wraps onto a new last line no longer leaves the cursor hidden
   under the status line until the next key.
+- Snapshots 1.0.1: two snapshots taken in quick succession on Windows
+  could list oldest first; they now list in the order taken.
 
 ## 0.4.1
 

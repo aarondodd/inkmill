@@ -63,11 +63,13 @@ class Store:
 
     def list(self) -> list[Snapshot]:
         items = []
-        for item in self._load()["snapshots"]:
+        for order, item in enumerate(self._load()["snapshots"]):
             snap = Snapshot(item["file"], item.get("name", ""), float(item["taken"]), int(item.get("words", 0)), self.folder)
             if snap.path.exists():
-                items.append(snap)
-        return sorted(items, key=lambda s: s.taken, reverse=True)
+                items.append((snap.taken, order, snap))
+        # Newest first. The index keeps snapshots in the order taken, which
+        # breaks ties: Windows' clock can give two quick snapshots the same time.
+        return [snap for _, _, snap in sorted(items, key=lambda t: (t[0], t[1]), reverse=True)]
 
     def take(self, text: str, name: str = "") -> Snapshot:
         self.folder.mkdir(parents=True, exist_ok=True)
