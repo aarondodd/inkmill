@@ -4,7 +4,7 @@ Built on Textual's Markdown widget, so headings, emphasis, lists, quotes,
 code blocks and tables are drawn as formatted text rather than as markup.
 The source is adjusted first for things that widget does not know:
 front matter is hidden, footnote references become superscripts, and task
-list boxes become check boxes. Line numbers are kept, so the view can open
+list boxes are kept as [x] and [ ]. Line numbers are kept, so the view can open
 at the paragraph the cursor is in.
 """
 
@@ -80,7 +80,9 @@ def reading_text(text: str) -> str:
             continue
         task = _TASK.match(line)
         if task:
-            box = "☑" if task.group(2).lower() == "x" else "☐"
+            # Plain brackets: check-box glyphs are missing from many terminal
+            # fonts (DOS and bitmap fonts show an empty box instead).
+            box = "[x]" if task.group(2).lower() == "x" else "[ ]"
             line = f"{task.group(1)}{box}{task.group(3)}{line[task.end():]}"
         out.append(_replace_refs(line))
     return "\n".join(out)
@@ -93,6 +95,10 @@ class ReadingScreen(Screen):
     ReadingScreen { background: $background; color: $foreground; }
     ReadingScreen > #reading-scroll { height: 1fr; align-horizontal: center; padding: 0 1; }
     ReadingScreen Markdown { width: 100%; background: $background; margin: 0; padding: 0; }
+    ReadingScreen MarkdownBlock > .strong { color: $im-bold; }
+    ReadingScreen MarkdownBlock > .em { color: $im-italic; }
+    ReadingScreen.-plain-emphasis MarkdownBlock > .strong { color: $foreground; }
+    ReadingScreen.-plain-emphasis MarkdownBlock > .em { color: $foreground; }
     ReadingScreen > #reading-hint {
         dock: bottom; height: 1; width: 100%; padding: 0 1;
         background: $im-status-bg; color: $im-status-fg; text-wrap: nowrap; text-overflow: ellipsis;
@@ -104,8 +110,18 @@ class ReadingScreen(Screen):
         Binding("q", "close", show=False),
     ]
 
-    def __init__(self, text: str, *, title: str = "", row: int = 0, width: int = 0, close_keys: tuple[str, ...] = ()) -> None:
+    def __init__(
+        self,
+        text: str,
+        *,
+        title: str = "",
+        row: int = 0,
+        width: int = 0,
+        close_keys: tuple[str, ...] = (),
+        emphasis_colors: bool = True,
+    ) -> None:
         super().__init__()
+        self.set_class(not emphasis_colors, "-plain-emphasis")
         self._text = reading_text(text)
         self._title = title
         self._row = row

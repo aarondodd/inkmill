@@ -241,6 +241,7 @@ class InkmillApp(App):
         for editor in self.query(InkEditor):
             editor.soft_wrap = self.settings.soft_wrap
             editor.rich = self.settings.rich_view
+            editor.apply_syntax_theme(self.current_theme)
 
     # -- side panel --------------------------------------------------------
 

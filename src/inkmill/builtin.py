@@ -548,6 +548,7 @@ def reading_view(app: "InkmillApp") -> None:
             row=editor.cursor_location[0],
             width=app.settings.page_width,
             close_keys=keys,
+            emphasis_colors=app.settings.emphasis_colors,
         ),
         done,
     )
@@ -916,6 +917,9 @@ def register_builtins(app: "InkmillApp") -> None:
     c("view.rich", "R&ich View", "alt+f3", description="Format Markdown as you write: bold shown bold, markup dimmed")(
         toggle_setting("rich_view", "Rich view")
     )
+    c("view.emphasis_colors", "Emphasis C&olors", description="Color bold and italic text too, for terminals that cannot show them")(
+        toggle_setting("emphasis_colors", "Emphasis colors")
+    )
     c("view.reading", "Re&ading View", "shift+f7", enabled=_has_doc, description="Read the document fully formatted")(reading_view)
     c("view.page_width", "&Page Width...")(page_width)
     c("view.settings", "Settings &File...")(open_settings)
@@ -956,7 +960,7 @@ def register_builtins(app: "InkmillApp") -> None:
     ]))
     app.menus.add_menu(Menu("view", "&View", [
         M("view.theme"), M("view.menu_bar"), M("view.status_bar"), M("view.wrap"), M("view.page_width"), S(),
-        M("view.rich"), M("view.reading"), S(),
+        M("view.rich"), M("view.reading"), M("view.emphasis_colors"), S(),
         M("view.panel_focus"), M("view.panel_close"), S(),
         M("view.palette"), M("view.plugins"), M("view.settings"),
     ]))

@@ -76,6 +76,8 @@ input_fg = "#ffffff"
 dim = "#6f8a96"                      # Markdown punctuation, secondary text
 heading = "#f2c14e"
 mark = "#f2c14e"                     # list markers, links, code
+bold = "#ffffff"                     # bold text (Inkmill 0.5.1 and later)
+italic = "#9fd8df"                   # italic text (Inkmill 0.5.1 and later)
 ```
 
 The quickest way to start is New Theme from Current, which writes every key

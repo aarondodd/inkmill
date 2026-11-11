@@ -20,7 +20,7 @@ UI_KEYS = (
     "menu-bg", "menu-fg", "menu-hl-bg", "menu-hl-fg", "menu-key",
     "status-bg", "status-fg", "select-bg", "select-fg", "cursor-bg", "cursor-fg",
     "dialog-bg", "dialog-fg", "dialog-border", "input-bg", "input-fg",
-    "dim", "heading", "mark",
+    "dim", "heading", "mark", "bold", "italic",
 )
 
 # WordPerfect values, used only if a theme's palette cannot be read at all.
@@ -44,11 +44,34 @@ VARIABLE_DEFAULTS: dict[str, str] = {
     "im-dim": "#aaaaaa",
     "im-heading": "#ffff55",
     "im-mark": "#ffff55",
+    "im-bold": "#55ffff",
+    "im-italic": "#ff55ff",
 }
 
 
 def _contrast(color: Color) -> str:
     return "#000000" if color.brightness > 0.55 else "#ffffff"
+
+
+def _contrast_ratio(a: Color, b: Color) -> float:
+    def lum(c: Color) -> float:
+        def ch(x: int) -> float:
+            v = x / 255
+            return v / 12.92 if v <= 0.03928 else ((v + 0.055) / 1.055) ** 2.4
+
+        return 0.2126 * ch(c.r) + 0.7152 * ch(c.g) + 0.0722 * ch(c.b)
+
+    hi, lo = sorted((lum(a), lum(b)), reverse=True)
+    return (hi + 0.05) / (lo + 0.05)
+
+
+def _readable(color: Color, bg: Color, fg: Color, minimum: float = 4.5) -> Color:
+    """``color`` moved toward ``fg`` until it reads against ``bg``."""
+    for step in range(11):
+        mixed = color.blend(fg, step / 10)
+        if _contrast_ratio(mixed, bg) >= minimum:
+            return mixed
+    return fg
 
 
 def _distinct(color: Color, against: Color, fallback: Color) -> Color:
@@ -71,6 +94,14 @@ def derive_variables(theme: Theme) -> dict[str, str]:
         panel = bg.lighten(0.12) if theme.dark else bg.darken(0.08)
     dim = fg.blend(bg, 0.45)
     heading = _distinct(accent, bg, fg)
+    # Bold and italic also get a color, because many terminals and fonts
+    # cannot show the weight or the slant (a bitmap DOS font, or Windows
+    # Terminal drawing bold as a brighter color, which white text already is).
+    bold = fg.lighten(0.3) if theme.dark else fg.darken(0.5)
+    if abs(bold.brightness - fg.brightness) < 0.08:
+        bold = _distinct(primary, bg, fg)
+    italic = _readable(_distinct(primary.blend(fg, 0.35), bg, fg), bg, fg)
+    bold = _readable(bold, bg, fg)
     return {
         "im-menu-bg": panel.hex,
         "im-menu-fg": fg.hex,
@@ -91,6 +122,8 @@ def derive_variables(theme: Theme) -> dict[str, str]:
         "im-dim": dim.hex,
         "im-heading": heading.hex,
         "im-mark": heading.hex,
+        "im-bold": bold.hex,
+        "im-italic": italic.hex,
     }
 
 
@@ -181,6 +214,8 @@ WORDPERFECT = _theme(
     dim="#aaaaaa",
     heading="#ffff55",
     mark="#ffff55",
+    bold="#55ffff",
+    italic="#ff55ff",
 )
 
 # WordGrinder's default look: light text on black with cyan accents.
@@ -209,6 +244,8 @@ GRINDER = _theme(
     dim="#808080",
     heading="#ffffff",
     mark="#00ffff",
+    bold="#ffffff",
+    italic="#ffff55",
 )
 
 PAPER = _theme(
@@ -236,6 +273,8 @@ PAPER = _theme(
     dim="#8a8170",
     heading="#8b2e16",
     mark="#8b2e16",
+    bold="#000000",
+    italic="#1f4e79",
 )
 
 AMBER = _theme(
@@ -263,6 +302,8 @@ AMBER = _theme(
     dim="#996600",
     heading="#ffdd55",
     mark="#ffdd55",
+    bold="#ffe08a",
+    italic="#ff8c1a",
 )
 
 PHOSPHOR = _theme(
@@ -290,12 +331,14 @@ PHOSPHOR = _theme(
     dim="#1f8f3f",
     heading="#aaffcc",
     mark="#aaffcc",
+    bold="#ccffdd",
+    italic="#00cc99",
 )
 
 BUILTIN_THEMES: tuple[Theme, ...] = (WORDPERFECT, GRINDER, PAPER, AMBER, PHOSPHOR)
 
 
-def syntax_theme(theme: Theme, decorations: dict | None = None) -> TextAreaTheme:
+def syntax_theme(theme: Theme, decorations: dict | None = None, *, emphasis_colors: bool = True) -> TextAreaTheme:
     """Markdown highlighting colors for the editor, derived from a screen theme.
 
     Only syntax colors are set; the background, cursor and selection keep
@@ -311,6 +354,8 @@ def syntax_theme(theme: Theme, decorations: dict | None = None) -> TextAreaTheme
     heading = v["im-heading"]
     dim = v["im-dim"]
     mark = v["im-mark"]
+    bold = v["im-bold"] if emphasis_colors else None
+    italic = v["im-italic"] if emphasis_colors else None
     return TextAreaTheme(
         name="inkmill",
         syntax_styles={
@@ -325,9 +370,9 @@ def syntax_theme(theme: Theme, decorations: dict | None = None) -> TextAreaTheme
             "string.escape": Style(color=dim),
             # Rich view (inkmill.richtext): formatting over the source text.
             "rich.marker": Style(color=dim, bold=False, italic=False, underline=False, strike=False),
-            "rich.bold": Style(bold=True),
-            "rich.italic": Style(italic=True),
-            "rich.bold_italic": Style(bold=True, italic=True),
+            "rich.bold": Style(bold=True, color=bold),
+            "rich.italic": Style(italic=True, color=italic),
+            "rich.bold_italic": Style(bold=True, italic=True, color=bold),
             "rich.strike": Style(strike=True),
             "rich.highlight": Style(reverse=True),
             "rich.code": Style(color=mark),
@@ -339,7 +384,7 @@ def syntax_theme(theme: Theme, decorations: dict | None = None) -> TextAreaTheme
             "rich.quote": Style(italic=True),
             "rich.list": Style(color=mark, bold=True),
             "rich.done": Style(color=dim, strike=True),
-            "rich.table_header": Style(bold=True),
+            "rich.table_header": Style(bold=True, color=bold),
             "rich.frontmatter": Style(color=dim),
             **extra,
         },

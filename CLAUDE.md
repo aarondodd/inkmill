@@ -207,7 +207,20 @@ building on Textual internals.
   and Shift+F7 (reading); menu letters R&ich and Re&ading because the Themes
   plugin holds G and R in the View menu.
 
-## Status
+### 0.5.1 emphasis colors
+
+Aaron saw no bold or italic in 0.5.0 (markers dimmed, nothing else). The SGR
+codes were emitted (ESC[1m, ESC[3m seen in `tmux capture-pane -e`), so the
+terminal could not draw them: likely the laptop's Ghostty DOS profile (bitmap
+VGA font, `bold-color = bright`, no italic face), and Windows Terminal draws
+bold as bright by default, which white text already is. Fix: `im-bold` and
+`im-italic` theme colors (UI_KEYS), derived with a 4.5:1 contrast floor,
+applied in syntax_theme and to Markdown `.strong`/`.em` in the reading view;
+`emphasis_colors` setting and View > Emphasis Colors. Validated with real
+xterm screenshots on Xvfb (normal font, and `-fn 9x15` with bold disabled),
+driven through tmux send-keys; xwd parsed with PIL. Textual's SVG export
+always shows bold and italic, so it cannot validate this.
+
 
 - 0.1.0 committed and pushed 2026-11-02. 52 tests pass (pytest with
   Textual's pilot), green in CI on ubuntu, windows and macos with 3.11 and
@@ -216,8 +229,8 @@ building on Textual internals.
 - 0.3.0 (writer plugins) merged by Aaron as PR #2.
 - 0.4.0 (Claude Code provider, story bible) merged by Aaron as PR #3.
 - 0.4.1 (update checking and self-update) merged by Aaron as PR #4.
-- 0.4.2 (status line path clipping, cursor scroll fix) in PR #5.
-- 0.5.0 (rich view, reading view) stacked on PR #5.
+- 0.4.2 (status line, cursor scroll) and 0.5.0 (rich and reading views) merged by Aaron as PRs #5 and #6.
+- 0.5.1 (emphasis colors) on branch `emphasis-colors-0.5.1`.
 - Not yet exercised by a human on Windows Terminal or Termux. L-2026-07-19-001
   applies: verify there before calling it done.
 

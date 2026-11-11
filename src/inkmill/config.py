@@ -46,6 +46,9 @@ class Settings:
     syntax_highlight: bool = True
     # Format Markdown in the editor (bold shown bold, markup dimmed).
     rich_view: bool = False
+    # Also color bold and italic text (rich and reading views), for terminals
+    # or fonts that cannot show bold or italic on their own.
+    emphasis_colors: bool = True
     default_format: str = "markdown"
     export_style: str = "classic"
     typographer: bool = True
