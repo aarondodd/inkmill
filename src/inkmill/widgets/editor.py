@@ -71,6 +71,17 @@ class InkEditor(TextArea):
         # editor is attached to the app.
         self.apply_syntax_theme(self.app.current_theme)
 
+    def edit(self, edit):
+        # TextArea scrolls to the cursor when the selection moves, which
+        # happens inside ``edit`` before the virtual size grows to the new
+        # wrapped height. A keystroke that wraps onto a new last line is then
+        # clamped to the old scroll range and the cursor sits below the
+        # viewport until the next key. Scroll again once the size is current.
+        result = super().edit(edit)
+        if self._has_cursor:
+            self.scroll_cursor_visible()
+        return result
+
     # -- decorations -------------------------------------------------------
 
     def set_decorations(self, owner: str, ranges: list[tuple[Location, Location, str]]) -> None:

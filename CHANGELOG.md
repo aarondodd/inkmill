@@ -1,6 +1,14 @@
 # Changelog
 
-## 0.4.1 (unreleased)
+## 0.4.2
+
+- The status line keeps the end of a long path visible: leading folders are
+  dropped first (`.../chapters/the-crossing.md *`), and a long file name is
+  cut from the left, so the name and the unsaved marker always show.
+- Typing that wraps onto a new last line no longer leaves the cursor hidden
+  under the status line until the next key.
+
+## 0.4.1
 
 - Update checking: once a day Inkmill says when a newer version is out, and
   Help > Check for Updates shows what is new and installs it. Inkmill works
