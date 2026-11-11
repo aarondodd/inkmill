@@ -44,6 +44,8 @@ class Settings:
     soft_wrap: bool = True
     lines_per_page: int = 54
     syntax_highlight: bool = True
+    # Format Markdown in the editor (bold shown bold, markup dimmed).
+    rich_view: bool = False
     default_format: str = "markdown"
     export_style: str = "classic"
     typographer: bool = True

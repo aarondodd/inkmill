@@ -525,6 +525,34 @@ def toggle_setting(name: str, message: str):
     return handler
 
 
+def reading_view(app: "InkmillApp") -> None:
+    from .screens.reading import ReadingScreen
+
+    doc = app.active_document
+    editor = app.active_editor
+    if doc is None or editor is None:
+        return
+    if not doc.format.markdown:
+        app.status.flash("The reading view is for Markdown documents.")
+        return
+    command = app.commands.get("view.reading")
+    keys = command.keys if command else ()
+
+    def done(_result) -> None:
+        editor.focus()
+
+    app.push_screen(
+        ReadingScreen(
+            editor.text,
+            title=doc.title,
+            row=editor.cursor_location[0],
+            width=app.settings.page_width,
+            close_keys=keys,
+        ),
+        done,
+    )
+
+
 def toggle_menu_bar(app: "InkmillApp") -> None:
     app.settings.menu_bar = "auto" if app.settings.menu_bar == "always" else "always"
     app.settings.save()
@@ -885,6 +913,10 @@ def register_builtins(app: "InkmillApp") -> None:
     c("view.menu_bar", "Pin &Menu Bar")(toggle_menu_bar)
     c("view.status_bar", "&Status Bar")(toggle_setting("status_bar", "Status bar"))
     c("view.wrap", "Soft &Wrap")(toggle_setting("soft_wrap", "Soft wrap"))
+    c("view.rich", "R&ich View", "alt+f3", description="Format Markdown as you write: bold shown bold, markup dimmed")(
+        toggle_setting("rich_view", "Rich view")
+    )
+    c("view.reading", "Re&ading View", "shift+f7", enabled=_has_doc, description="Read the document fully formatted")(reading_view)
     c("view.page_width", "&Page Width...")(page_width)
     c("view.settings", "Settings &File...")(open_settings)
     c("view.palette", "&Command Palette...", "ctrl+p")(lambda a: a.action_command_palette())
@@ -924,6 +956,7 @@ def register_builtins(app: "InkmillApp") -> None:
     ]))
     app.menus.add_menu(Menu("view", "&View", [
         M("view.theme"), M("view.menu_bar"), M("view.status_bar"), M("view.wrap"), M("view.page_width"), S(),
+        M("view.rich"), M("view.reading"), S(),
         M("view.panel_focus"), M("view.panel_close"), S(),
         M("view.palette"), M("view.plugins"), M("view.settings"),
     ]))

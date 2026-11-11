@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.5.0
+
+- Rich view (View > Rich View, Alt+F3): Markdown is formatted while you
+  write. Bold, italic, bold italic, strikethrough, highlight, headings,
+  links, inline and fenced code, quotes, lists, finished tasks, footnotes
+  and front matter each get their own look, and the markup characters are
+  dimmed but kept, so editing works as in the raw view. Tables line up as
+  you type in them, keeping the cursor in its cell. The `rich_view` setting
+  remembers the choice. Long documents type faster in the rich view than in
+  the raw one, because only the lines on screen are styled.
+- Reading view (View > Reading View, Shift+F7): the document fully
+  formatted and read-only, opening at the cursor's paragraph. Footnote
+  references show as superscripts and task boxes as check boxes; web links
+  open in the browser.
+
 ## 0.4.2
 
 - The status line keeps the end of a long path visible: leading folders are
