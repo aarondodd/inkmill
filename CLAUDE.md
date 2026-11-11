@@ -221,6 +221,22 @@ xterm screenshots on Xvfb (normal font, and `-fn 9x15` with bold disabled),
 driven through tmux send-keys; xwd parsed with PIL. Textual's SVG export
 always shows bold and italic, so it cannot validate this.
 
+### 0.5.2 format commands
+
+Aaron reported Italic inserting `**`, Bold `****` and Inline Code `~~`. The
+first two were the empty-pair design (cursor between `*` and `*`); Inline
+Code inserting `~~` did not reproduce (menu letter, arrows and Ctrl+P all
+ran format.code with plugins loaded), most likely two backticks drawn by his
+font. `toggle_wrap` now takes a placeholder: word under the cursor first,
+else markers around a selected placeholder; `_closes_here` steps past the
+closing marker on a second press; `_has_markers` uses the run of `*`/`_` so
+italic and bold combine. In the rich view `_RichHighlights` appends a
+`rich.selected` range for the selection (TextArea draws highlights after the
+selection), updated from `_watch_selection`. Real-terminal check: keys sent
+back to back with tmux send-keys gave a garbled run; pacing them 0.4 s apart
+worked (cause not investigated).
+
+## Status
 
 - 0.1.0 committed and pushed 2026-11-02. 52 tests pass (pytest with
   Textual's pilot), green in CI on ubuntu, windows and macos with 3.11 and
@@ -230,7 +246,8 @@ always shows bold and italic, so it cannot validate this.
 - 0.4.0 (Claude Code provider, story bible) merged by Aaron as PR #3.
 - 0.4.1 (update checking and self-update) merged by Aaron as PR #4.
 - 0.4.2 (status line, cursor scroll) and 0.5.0 (rich and reading views) merged by Aaron as PRs #5 and #6.
-- 0.5.1 (emphasis colors) on branch `emphasis-colors-0.5.1`.
+- 0.5.1 (emphasis colors) merged by Aaron as PR #7.
+- 0.5.2 (format commands) on branch `format-wrap-0.5.2`.
 - Not yet exercised by a human on Windows Terminal or Termux. L-2026-07-19-001
   applies: verify there before calling it done.
 

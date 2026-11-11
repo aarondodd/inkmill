@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.5.2
+
+- Bold, Italic, Strikethrough and Inline Code no longer insert an empty
+  pair of markers when nothing is selected (an empty italic pair, `**`,
+  looked like bold). They now format the word the cursor is in, or insert
+  the markup around selected placeholder text (`*italic text*`) that typing
+  replaces. Choosing the command again just before its closing marker steps
+  past it.
+- Selecting `**word**` and choosing Italic gives `***word***` instead of
+  turning the bold into italic; Italic inside bold italic removes only the
+  italic.
+- Selected text in the rich view keeps the selection colors instead of the
+  bold or italic color.
+
 ## 0.5.1
 
 - Bold and italic text now also get their own colors in the rich view and
