@@ -2,7 +2,7 @@ id = "ai"
 name = "AI Assistant"
 version = "1.2.0"
 requires_inkmill = ">=0.3"
-summary = "Opt-in help from Claude (through Claude Code on your Claude plan, or an API key), a local Ollama model or any OpenAI-compatible server: feedback, rewrites, synopses and a continuity check across a binder."
+summary = "Opt-in help from Claude (through Claude Code on your Claude plan, or an API key), a local Ollama model or any OpenAI-compatible server: feedback, rewrites, synopses and a continuity check across a binder. The reply panel pages through earlier turns; with Claude Code that history is kept on disk, with the other providers only until Inkmill quits."
 author = "Aaron Dodd"
 license = "MIT"
 

@@ -252,6 +252,17 @@ tool use, like the panel. Binder 1.2 `Service.add_research_note` (shared
 with Clip Web Page) writes and links the note, never overwriting. Verified
 end to end against real claude with haiku.
 
+Same PR, at Aaron's request: the reply panel shows the request above the
+reply and pages through turns (Left/Right and `[`/`]`, L list, AI >
+Conversation History). `ReplyPanel` holds `entries` (conversation.Exchange)
+plus an optional live entry that streams; R and 1-3 act only on the live
+entry. Claude Code turns come from the transcript (re-read per panel,
+cached by mtime and size); other providers keep a per-project in-memory
+list in `state["memory"]` until quit, documented as Claude Code only for
+now. `TurnList` filters across request and reply text. Checked in tmux
+with the plugin symlinked into a scratch `<config>/plugins` (the app loads
+plugins from there, not the repo).
+
 ## Status
 
 - 0.1.0 committed and pushed 2026-11-02. 52 tests pass (pytest with
@@ -269,6 +280,12 @@ end to end against real claude with haiku.
   applies: verify there before calling it done.
 
 ## Ideas not built yet
+
+AI history follow-ups Aaron wants remembered (2026-11-12): a lasting
+history for the API, Ollama and OpenAI-compatible providers (they keep
+turns only in memory now); replying from an earlier turn, which with Claude
+Code means a branched session (`--fork-session`); and a key to show a long
+request passage in full instead of its first 8 lines.
 
 Typewriter scrolling and focus mode, autosave-to-file beside crash
 recovery, a running header for the manuscript DOCX, an offline thesaurus,

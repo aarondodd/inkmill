@@ -249,3 +249,33 @@ async def test_ai_rewrite_picks_an_alternative(tmp_path, fake_ai):
         await pilot.press("2")
         assert await wait_for(pilot, lambda: app.active_document.text == "Two\n")
         assert "127.0.0.1" in str(app.settings.plugins["ai"]["consented"])
+
+
+async def test_ai_history_is_kept_in_memory_for_other_providers(tmp_path, fake_ai):
+    doc = tmp_path / "d.md"
+    doc.write_text("A long and winding sentence.\n")
+    ai_settings = {"provider": "ollama", "base_url": fake_ai, "model": "llama3.1"}
+    app = app_with(tmp_path, "ai", paths=[doc], plugins={"ai": ai_settings})
+    async with app.run_test(size=(120, 30)) as pilot:
+        app.run_command("ai.history")
+        await pilot.pause(0.2)
+        assert type(app.screen).__name__ != "TurnList"  # nothing yet
+        previous = None
+        for n in range(2):
+            app.run_command("ai.summarize")
+            if n == 0:
+                assert await wait_for(pilot, lambda: type(app.screen).__name__ == "ConfirmDialog")
+                await pilot.press("a")
+            assert await wait_for(pilot, lambda: app.panel.visible and app.panel.content is not previous
+                                  and app.panel.content.done)
+            previous = app.panel.content
+        panel = app.panel.content
+        assert len(panel.entries) == 2 and panel.index == 1
+        assert panel.entries[1].label == "Summarize" and panel.entries[1].about == "d.md"
+        assert panel.entries[1].request == "(About the whole document.)"  # the sent text is not repeated
+        await pilot.press("q")
+        assert await wait_for(pilot, lambda: type(app.screen).__name__ == "InputDialog")
+        app.screen.query_one("Input").value = "Shorter?"
+        await pilot.press("enter")
+        assert await wait_for(pilot, lambda: app.panel.content is not panel and app.panel.content.done)
+        assert [e.label for e in app.panel.content.entries] == ["Summarize", "Summarize", "Follow-up"]

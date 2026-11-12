@@ -29,11 +29,12 @@ from rich.markdown import Markdown
 from rich.text import Text
 from textual import events
 from textual.containers import Vertical, VerticalScroll
-from textual.widgets import Static
+from textual.widgets import Input, Label, OptionList, Static
+from textual.widgets.option_list import Option
 
 from inkmill import frontmatter
 from inkmill.config import config_dir, state_dir
-from inkmill.screens.dialogs import ChoiceDialog, ConfirmDialog, InputDialog, TextDialog
+from inkmill.screens.dialogs import ChoiceDialog, ConfirmDialog, Dialog, InputDialog, TextDialog
 
 from . import claudecode, client, conversation
 from .conversation import CONTINUITY, FEEDBACK, PASSAGE, REWRITE, SUMMARY, TEXT, WHOLE_DOCUMENT
@@ -64,71 +65,176 @@ the book should sound. In the AI reply panel, B adds a reply to the end.
 
 ## Style
 """
-HINT_BASE = "Q follow up  B bible  C copy  Esc close"
 SPLIT = re.compile(r"^\s*-{3,}\s*$", re.MULTILINE)
 
 
+REQUEST_LINES = 8
+
+
 class ReplyPanel(Vertical):
-    """A streaming reply with keys to use it."""
+    """A reply with the request it answers, keys to use it, and the earlier
+    turns of the conversation to page through.
+
+    ``history`` is the conversation so far; ``live`` is the request being
+    sent now, whose reply streams in. Without ``live`` the panel only shows
+    earlier turns, starting at ``index``.
+    """
 
     DEFAULT_CSS = """
     ReplyPanel { height: 1fr; }
     ReplyPanel > VerticalScroll { height: 1fr; padding: 0 1; }
+    ReplyPanel #ai-request { color: $im-dialog-fg 70%; height: auto; margin-bottom: 1; }
     ReplyPanel #ai-note { color: $im-dialog-fg 70%; text-style: italic; height: auto; }
     """
 
     can_focus = True
 
-    def __init__(self, plugin, *, can_replace: bool, choices: bool) -> None:
+    def __init__(self, plugin, *, can_replace: bool = False, choices: bool = False,
+                 history: list | None = None, live=None, index: int | None = None) -> None:
         super().__init__()
         self.plugin = plugin
         self.can_replace = can_replace
         self.choices = choices
-        self.text = ""
-        self.done = False
+        self.entries = list(history or []) + ([live] if live is not None else [])
+        self.live = len(self.entries) - 1 if live is not None else None
+        self.index = index if index is not None else len(self.entries) - 1
+        self.done = live is None
+        self.live_note = ""
+        self.error: str | None = None
+
+    # -- what is shown -----------------------------------------------------------
+
+    @property
+    def viewing_live(self) -> bool:
+        return self.live is not None and self.index == self.live
+
+    @property
+    def text(self) -> str:
+        """The reply on screen."""
+        return self.entries[self.index].reply if self.entries else ""
 
     def compose(self):
         with VerticalScroll():
+            yield Static("", id="ai-request")
             yield Static("", id="ai-note")
-            yield Static(Text("Waiting for the reply...", style="italic"), id="ai-reply")
+            yield Static("", id="ai-reply")
+
+    def on_mount(self) -> None:
+        self.show_entry()
+
+    def heading(self) -> str:
+        entry = self.entries[self.index]
+        return f"AI: {entry.label or 'Claude Code'} (turn {self.index + 1} of {len(self.entries)})"
+
+    def hint(self) -> str:
+        keys = []
+        if self.done or not self.viewing_live:
+            keys.append("I insert")
+            if self.viewing_live and self.can_replace:
+                keys.append("R replace")
+            if self.viewing_live and self.choices:
+                keys.append("1-3 pick")
+        if self.done:
+            keys.append("Q follow up")
+        keys += ["<- -> turns", "L list"]
+        if self.done or not self.viewing_live:
+            keys += ["B bible", "C copy"]
+        return "  ".join(keys + ["Esc close"])
+
+    def show_entry(self) -> None:
+        if not self.entries:
+            return
+        entry = self.entries[self.index]
+        request = self.query_one("#ai-request", Static)
+        if entry.label or entry.request:
+            head = "Me" + (f": {entry.label}" if entry.label else "") + (f"  ({entry.about})" if entry.about else "")
+            body = entry.request.strip().splitlines()
+            if len(body) > REQUEST_LINES:
+                body = body[:REQUEST_LINES] + [f"(+{len(body) - REQUEST_LINES} more lines)"]
+            shown = Text(head, style="bold")
+            if body:
+                shown.append("\n" + "\n".join(body))
+            request.update(shown)
+            request.display = True
+        else:
+            request.display = False
+        if self.viewing_live and not self.done:
+            self.query_one("#ai-note", Static).update(self.live_note)
+        else:
+            self.query_one("#ai-note", Static).update(
+                "Looked at: " + ", ".join(entry.looked_at) if entry.looked_at else "")
+        reply = self.query_one("#ai-reply", Static)
+        if self.viewing_live and not self.done:
+            reply.update(Text(entry.reply) if entry.reply else Text("Waiting for the reply...", style="italic"))
+        elif self.viewing_live and self.error:
+            reply.update(Text(f"{entry.reply}\n\n{self.error}" if entry.reply else self.error, style="bold"))
+        else:
+            reply.update(Markdown(entry.reply) if entry.reply.strip() else Text("(no reply)", style="italic"))
+        self.query_one(VerticalScroll).scroll_home(animate=False)
+        self.plugin.panel_changed(self)
+
+    def go(self, index: int) -> None:
+        if self.entries and 0 <= index < len(self.entries) and index != self.index:
+            self.index = index
+            self.show_entry()
+
+    # -- the live reply --------------------------------------------------------
 
     def add(self, piece: str) -> None:
-        self.text += piece
-        self.query_one("#ai-reply", Static).update(Text(self.text))
-        self.query_one(VerticalScroll).scroll_end(animate=False)
+        entry = self.entries[self.live]
+        entry.reply += piece
+        if self.viewing_live:
+            self.query_one("#ai-reply", Static).update(Text(entry.reply))
+            self.query_one(VerticalScroll).scroll_end(animate=False)
 
     def note(self, line: str) -> None:
         """What Claude is doing between pieces of text (reading a chapter)."""
-        self.query_one("#ai-note", Static).update(line)
+        self.live_note = line
+        if self.viewing_live:
+            self.query_one("#ai-note", Static).update(line)
 
     def reset(self) -> None:
-        self.text = ""
-        self.query_one("#ai-reply", Static).update(Text("Writing the reply...", style="italic"))
+        self.entries[self.live].reply = ""
+        if self.viewing_live:
+            self.query_one("#ai-reply", Static).update(Text("Writing the reply...", style="italic"))
 
     def finish(self, error: str | None = None, text: str | None = None) -> None:
         self.done = True
-        self.note("")
+        self.live_note = ""
+        self.error = error
         if text is not None:
-            self.text = text
-        reply = self.query_one("#ai-reply", Static)
-        if error:
-            reply.update(Text(f"{self.text}\n\n{error}" if self.text else error, style="bold"))
-            return
-        reply.update(Markdown(self.text) if self.text.strip() else Text("(no reply)", style="italic"))
+            self.entries[self.live].reply = text
+        if self.viewing_live:
+            self.show_entry()
+            if not error:
+                self.query_one(VerticalScroll).scroll_home(animate=False)
+        else:
+            self.plugin.panel_changed(self)
 
     def alternatives(self) -> list[str]:
         return [part.strip() for part in SPLIT.split(self.text) if part.strip()]
 
+    # -- keys ------------------------------------------------------------------
+
     def on_key(self, event: events.Key) -> None:
         key = (event.character or "").lower()
-        if not self.done or not key:
+        if event.key in ("left", "right") or key in ("[", "]"):
+            self.go(self.index + (-1 if event.key == "left" or key == "[" else 1))
+            event.stop()
+            return
+        if key == "l":
+            self.plugin.pick_turn(self)
+            event.stop()
+            return
+        ready = self.done or not self.viewing_live
+        if not ready or not key:
             return
         handled = True
         if key == "i":
             self.plugin.insert(self.text.strip())
-        elif key == "r" and self.can_replace:
+        elif key == "r" and self.can_replace and self.viewing_live:
             self.plugin.replace(self.text.strip())
-        elif key in "123" and self.choices:
+        elif key in "123" and self.choices and self.viewing_live:
             options = self.alternatives()
             index = int(key) - 1
             if index < len(options):
@@ -138,12 +244,70 @@ class ReplyPanel(Vertical):
             self.app.status.flash("Copied the reply.")
         elif key == "b":
             self.plugin.add_to_bible(self.text.strip())
-        elif key == "q":
+        elif key == "q" and self.done:
             self.plugin.follow_up()
         else:
             handled = False
         if handled:
             event.stop()
+
+
+class TurnList(Dialog):
+    """The turns of a conversation, to pick one; typing filters them."""
+
+    DEFAULT_CSS = Dialog.DEFAULT_CSS + """
+    TurnList .im-dialog { width: 96; }
+    TurnList OptionList { height: auto; max-height: 20; background: $im-dialog-bg; border: none; }
+    """
+
+    def __init__(self, title: str, entries: list, current: int | None = None) -> None:
+        super().__init__()
+        self.title_text = title
+        self.rows = [
+            (i, f"{i + 1:>3}  {(e.label or 'Claude Code')[:16]:<16} {(e.about or '')[:16]:<16} {conversation.describe(e)}")
+            for i, e in enumerate(entries)
+        ]
+        self.search = {i: f"{row}\n{entries[i].request}\n{entries[i].reply}".lower() for i, row in self.rows}
+        self.current = len(entries) - 1 if current is None else current
+
+    def compose(self):
+        with Vertical(classes="im-dialog"):
+            yield Label(self.title_text, classes="im-title")
+            yield Input(placeholder="Type to search the turns; Enter shows one", id="filter")
+            yield OptionList()
+
+    def on_mount(self) -> None:
+        self.fill("")
+        self.query_one(Input).focus()
+
+    def fill(self, text: str) -> None:
+        words = text.lower().split()
+        shown = [(i, row) for i, row in self.rows if all(w in self.search[i] for w in words)]
+        options = self.query_one(OptionList)
+        options.clear_options()
+        options.add_options([Option(Text(row, no_wrap=True, overflow="ellipsis"), id=str(i)) for i, row in shown])
+        ids = [i for i, _ in shown]
+        if ids:
+            options.highlighted = ids.index(self.current) if self.current in ids else len(ids) - 1
+
+    def on_input_changed(self, event: Input.Changed) -> None:
+        self.fill(event.value)
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        options = self.query_one(OptionList)
+        if options.highlighted is not None and options.option_count:
+            self.dismiss(int(options.get_option_at_index(options.highlighted).id))
+
+    def on_key(self, event: events.Key) -> None:
+        options = self.query_one(OptionList)
+        if self.query_one(Input).has_focus and event.key in ("up", "down", "pageup", "pagedown") and options.option_count:
+            step = {"up": -1, "down": 1, "pageup": -10, "pagedown": 10}[event.key]
+            current = options.highlighted if options.highlighted is not None else 0
+            options.highlighted = max(0, min(options.option_count - 1, current + step))
+            event.stop()
+
+    def on_option_list_option_selected(self, event) -> None:
+        self.dismiss(int(event.option.id))
 
 
 def _strip_number(text: str) -> str:
@@ -241,7 +405,7 @@ def register(api):
             lines.append(f"Story bible: {where(bible, proj)}")
         doc = app.active_document
         if doc is not None:
-            lines.append(f"The writer is working on: {where(doc.path, proj, doc)}")
+            lines.append(f"{conversation.WORKING_ON}{where(doc.path, proj, doc)}")
         return "\n".join(lines)
 
     def extra_dirs(proj: Project) -> tuple[Path, ...]:
@@ -327,15 +491,22 @@ def register(api):
                 f"# Story bible (facts the writer has settled; follow it)\n\n{bible}" if bible else "", context) if part)
         await run(title, can_replace=can_replace, choices=choices, max_tokens=max_tokens)
 
+    def live_exchange(title: str, request: str) -> conversation.Exchange:
+        """The request being sent, as the reply panel shows it."""
+        if title == "Follow-up":
+            return conversation.Exchange(title, request)
+        doc = app.active_document
+        about = conversation.request_file(request) or (doc.path.name if doc is not None and doc.path is not None else "")
+        return conversation.Exchange(title, conversation.clean_request(request, from_inkmill=True)[1], about=about)
+
     async def run(title: str, *, can_replace: bool, choices: bool, max_tokens: int | None = None) -> None:
         p = provider()
-        panel = ReplyPanel(plugin, can_replace=can_replace, choices=choices)
+        request = state["prompt"] if p.kind == "cli" else state["conversation"][-1]["content"]
+        live = live_exchange(title, request)
+        past = await history()
+        panel = ReplyPanel(plugin, can_replace=can_replace, choices=choices, history=past, live=live)
         state["panel"] = panel
-        hints = ["I insert"] + (["R replace"] if can_replace else []) + (["1-3 pick"] if choices else []) + [HINT_BASE]
-        if p.kind == "cli":
-            turn = sessions().turns(project().folder) + 1
-            title = f"{title} (conversation turn {turn})"
-        await api.show_panel(panel, f"AI: {title}", "  ".join(hints))
+        await api.show_panel(panel, panel.heading(), panel.hint())
         cancel = threading.Event()
         state["cancel"] = cancel
 
@@ -360,7 +531,32 @@ def register(api):
         if cancel.is_set():
             return
         state["conversation"].append({"role": "assistant", "content": reply})
+        live.reply = reply
+        if p.kind != "cli":
+            memory(project().folder).append(live)
         panel.finish(text=reply)
+
+    # -- the conversation so far -------------------------------------------------
+
+    def memory(folder: Path) -> list:
+        """This run's exchanges for a project, for providers that keep no
+        conversation on disk. Lost when Inkmill quits."""
+        return state.setdefault("memory", {}).setdefault(folder.resolve().as_posix(), [])
+
+    async def history() -> list:
+        """The project's earlier exchanges: Claude Code's own record of the
+        conversation, or for other providers the ones made since Inkmill started."""
+        proj = project()
+        if not is_cli():
+            return list(memory(proj.folder))
+        session = sessions().get(proj.folder)
+        source = conversation.find(session) if session else None
+        if source is None:
+            return []
+        try:
+            return conversation.exchanges(await api.run_in_thread(conversation.load, source))
+        except OSError:
+            return []
 
     async def run_cli(prompt: str, on_text, *, cancel: threading.Event | None = None, on_tool=None, on_reset=None,
                       persist: bool = True, files: bool | None = None) -> str:
@@ -439,6 +635,18 @@ def register(api):
         def follow_up(self) -> None:
             app.run_worker(follow_up_worker(), exit_on_error=False)
 
+        def panel_changed(self, panel: ReplyPanel) -> None:
+            if api.owns_panel and app.panel.content is panel:
+                app.panel.set_title(panel.heading())
+                app.panel.set_hint(panel.hint())
+
+        def pick_turn(self, panel: ReplyPanel) -> None:
+            async def pick() -> None:
+                index = await app.push_screen_wait(TurnList(f"Conversation: {project().label}", panel.entries, panel.index))
+                if index is not None:
+                    panel.go(index)
+            app.run_worker(pick(), exit_on_error=False)
+
     plugin = Plugin()
 
     async def follow_up_worker() -> None:
@@ -447,7 +655,7 @@ def register(api):
             return
         state["conversation"].append({"role": "user", "content": question})
         state["prompt"] = question
-        await run("follow-up", can_replace=state["selection"] is not None, choices=False)
+        await run("Follow-up", can_replace=state["selection"] is not None, choices=False)
 
     # -- what to send -----------------------------------------------------------
 
@@ -529,7 +737,7 @@ def register(api):
     async def summarize(app):
         sel = selection()
         state["selection"] = None
-        await ask(f"{SUMMARY}\n\n{source(sel)}", "Summary")
+        await ask(f"{SUMMARY}\n\n{source(sel)}", "Summarize")
 
     @api.command("ai.synopsis", "Write &Synopsis", menu="ai", enabled=has_doc,
                  description="A one- or two-sentence synopsis, saved to the document's front matter")
@@ -655,6 +863,21 @@ def register(api):
                 "there is part of the same conversation the next time you ask from Inkmill."
             ),
         ))
+
+    @api.command("ai.history", "Conversation &History...", menu="ai",
+                 description="Earlier requests and replies in this project's conversation")
+    async def show_history(app):
+        past = await history()
+        if not past:
+            app.status.flash("There is no conversation for this project yet." if is_cli()
+                             else "No AI requests yet since Inkmill started (only Claude Code keeps a history).")
+            return
+        index = await app.push_screen_wait(TurnList(f"Conversation: {project().label}", past))
+        if index is None:
+            return
+        panel = ReplyPanel(plugin, history=past, index=index)
+        state["panel"] = panel
+        await api.show_panel(panel, panel.heading(), panel.hint())
 
     @api.command("ai.save_conversation", "Sa&ve Conversation as Research Note...", menu="ai",
                  enabled=lambda a: is_cli() and sessions().get(project().folder) is not None,

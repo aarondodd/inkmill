@@ -125,3 +125,100 @@ async def test_save_conversation_adds_a_research_note_to_the_binder(tmp_path, mo
         app.screen.query_one(Input).value = "Naming the dog"
         await pilot.press("enter")
         assert await wait_for(pilot, lambda: (book / "research" / "naming-the-dog-2.md").exists())
+
+
+def test_exchanges_pair_requests_with_replies_and_describe_them(tmp_path):
+    copy = f"Project folder: /b\nThe writer is working on: /s/current/two.md (a copy of chapters/two.md with the writer's unsaved changes)"
+    assert conv.request_file(copy + "\n\nHi") == "two.md"
+    assert conv.request_file(HEADER + "\n\nHi") == "one.md"
+    assert conv.request_file("Hi") == ""
+    path = write_session(tmp_path, "s2", [
+        user(f"{HEADER}\n\n{conv.FEEDBACK}\n\n{conv.WHOLE_DOCUMENT}"),
+        assistant(text("## Notes\n\n**Strong** opening, weak middle.")),
+        user("Is Biscuit's age consistent?"),
+        assistant(text("Yes.")),
+        user("LOGIN"),  # a request whose reply never came
+    ])
+    pairs = conv.exchanges(conv.load(path))
+    assert [(e.label, e.about, e.reply) for e in pairs] == [
+        ("Feedback", "one.md", "## Notes\n\n**Strong** opening, weak middle."),
+        ("", "", "Yes."),
+        ("", "", ""),
+    ]
+    assert conv.describe(pairs[0]) == "Notes"
+    assert conv.describe(pairs[1]) == "Is Biscuit's age consistent?"
+    bold = conv.Exchange("Summarize", "", "**Summary:** *one.md* opens.\n\n- point")
+    assert conv.describe(bold) == "Summary: one.md opens."
+    assert conv.describe(conv.Exchange("Feedback", "", "- First point")) == "First point"
+    assert conv.describe(conv.Exchange("Ask", "x" * 100), width=20) == "x" * 17 + "..."
+    assert conv.load(path) is conv.load(path)  # cached until the file changes
+
+
+async def test_reply_panel_pages_through_the_claude_code_conversation(tmp_path, monkeypatch):
+    home = tmp_path / "claude-home"
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(home))
+    monkeypatch.setenv("FAKE_CLAUDE_LOG", str(tmp_path / "calls.jsonl"))
+    book = tmp_path / "book"
+    book.mkdir()
+    doc = book / "one.md"
+    doc.write_text("Mara walked her dog.\n")
+    cc.Sessions(tmp_path / "state" / "ai" / "claude-code-sessions.json").set(book, "sess-2")
+    write_session(home, "sess-2", [
+        user(f"{HEADER}\n\nWho is Mara?\n\n{conv.WHOLE_DOCUMENT}"),
+        assistant(text("Mara is the hero.")),
+        user(f"{HEADER}\n\n{conv.FEEDBACK}\n\n{conv.WHOLE_DOCUMENT}"),
+        assistant(text("Tighten the middle.")),
+    ])
+    settings = {"provider": "claude-code", "command": f'"{sys.executable}" "{FAKE}"', "consented": ["claude-code"]}
+    app = app_with(tmp_path, "ai", paths=[doc], plugins={"ai": settings})
+    async with app.run_test(size=(140, 40)) as pilot:
+        editor = app.active_editor
+        editor.select_range((0, 0), (0, 4))
+        app.run_command("ai.ask")
+        assert await wait_for(pilot, lambda: type(app.screen).__name__ == "InputDialog")
+        app.screen.query_one("Input").value = "Is the name good?"
+        await pilot.press("enter")
+        assert await wait_for(pilot, lambda: app.panel.visible and app.panel.content.done)
+        panel = app.panel.content
+        title = lambda: str(app.panel.query_one("#panel-title").render())
+        assert "AI: Ask (turn 3 of 3)" in title()
+        request = str(panel.query_one("#ai-request").render())
+        assert "Me: Ask  (one.md)" in request and "Is the name good?" in request and "> Mara" in request
+        assert "R replace" in str(app.panel.query_one("#panel-hint").render())
+
+        await pilot.press("left")
+        assert panel.index == 1 and "turn 2 of 3" in title() and panel.text == "Tighten the middle."
+        assert "R replace" not in str(app.panel.query_one("#panel-hint").render())
+        await pilot.press("r")  # replace is for the live reply only
+        assert editor.text == "Mara walked her dog.\n"
+        await pilot.press("[")
+        assert panel.index == 0 and panel.text == "Mara is the hero."
+        await pilot.press("[")
+        assert panel.index == 0
+        await pilot.press("c")
+        await pilot.press("right", "]")
+        assert panel.index == 2
+
+        # The list, filtered by typing.
+        await pilot.press("l")
+        assert await wait_for(pilot, lambda: type(app.screen).__name__ == "TurnList")
+        options = app.screen.query_one("OptionList")
+        assert options.option_count == 3 and options.highlighted == 2
+        assert "Feedback" in str(options.get_option_at_index(1).prompt)
+        app.screen.query_one("Input").value = "hero"
+        assert await wait_for(pilot, lambda: options.option_count == 1)
+        await pilot.press("enter")
+        assert await wait_for(pilot, lambda: type(app.screen).__name__ != "TurnList")
+        assert panel.index == 0
+
+        # AI > Conversation History opens the list without asking anything.
+        await pilot.press("escape")
+        # (The fake claude writes no transcript, so the list holds the two saved turns.)
+        app.run_command("ai.history")
+        assert await wait_for(pilot, lambda: type(app.screen).__name__ == "TurnList")
+        assert app.screen.query_one("OptionList").option_count == 2
+        await pilot.press("enter")
+        assert await wait_for(pilot, lambda: app.panel.visible and app.panel.content is not panel)
+        assert app.panel.content.index == 1 and app.panel.content.text == "Tighten the middle."
+        await pilot.press("i")
+        assert "Tighten the middle." in editor.text

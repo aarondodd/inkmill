@@ -41,6 +41,7 @@ PASSAGE = "The passage:\n\n"
 TEXT = "The text:\n\n"
 BIBLE = "The writer's story bible:\n\n"
 HEADER_START = "Project folder: "
+WORKING_ON = "The writer is working on: "
 
 _REWRITE = re.compile(r"Rewrite the passage below three different ways, (.+?)\. Keep the meaning")
 _HEADING = re.compile(r"^(#{1,4})(\s)", re.MULTILINE)
@@ -52,6 +53,18 @@ class Turn:
     role: str  # "me" or "claude"
     text: str
     label: str = ""  # the command a request came from, when known
+    looked_at: list[str] = field(default_factory=list)
+    about: str = ""  # the document a request was made from, when known
+
+
+@dataclass
+class Exchange:
+    """One request and the reply to it, as the reply panel shows them."""
+
+    label: str
+    request: str
+    reply: str = ""
+    about: str = ""
     looked_at: list[str] = field(default_factory=list)
 
 
@@ -118,17 +131,78 @@ def turns(path: Path) -> list[Turn]:
     out = [t for t in out if t.text or t.looked_at]
     for turn in out:
         if turn.role == "me":
+            turn.about = request_file(turn.text)
             turn.label, turn.text = clean_request(turn.text)
     return out
 
 
-def clean_request(text: str) -> tuple[str, str]:
+_cache: dict[Path, tuple[float, int, list[Turn]]] = {}
+
+
+def load(path: Path) -> list[Turn]:
+    """``turns(path)``, read again only when the file has changed."""
+    stat = path.stat()
+    hit = _cache.get(path)
+    if hit and hit[0] == stat.st_mtime and hit[1] == stat.st_size:
+        return hit[2]
+    result = turns(path)
+    _cache[path] = (stat.st_mtime, stat.st_size, result)
+    return result
+
+
+def request_file(text: str) -> str:
+    """The name of the document a request was made from, from the note at its top."""
+    if not text.startswith(HEADER_START):
+        return ""
+    for line in text.partition("\n\n")[0].splitlines():
+        if line.startswith(WORKING_ON):
+            value = line[len(WORKING_ON):].strip()
+            copy = re.search(r"\(a copy of (.+?) with the writer's unsaved changes\)$", value)
+            value = copy.group(1) if copy else value
+            return "" if value == "not saved yet" else Path(value.replace("\\", "/")).name
+    return ""
+
+
+def exchanges(conversation: list[Turn]) -> list[Exchange]:
+    """Each request paired with the reply after it."""
+    out: list[Exchange] = []
+    for turn in conversation:
+        if turn.role == "me":
+            out.append(Exchange(turn.label, turn.text, about=turn.about))
+        elif out and not out[-1].reply and not out[-1].looked_at:
+            out[-1].reply, out[-1].looked_at = turn.text, list(turn.looked_at)
+        else:
+            out.append(Exchange("", "", turn.text, looked_at=list(turn.looked_at)))
+    return out
+
+
+def _first_line(text: str) -> str:
+    for line in text.splitlines():
+        line = line.replace("**", "").replace("__", "").replace("`", "")
+        line = re.sub(r"^\s*(?:#+\s*|>\s*|[-*+]\s+|\d+[.)]\s+)", "", line).replace("*", "").strip()
+        if line and line != "(About the whole document.)" and line != "About this passage:":
+            return line
+    return ""
+
+
+def describe(exchange: Exchange, width: int = 60) -> str:
+    """A one-line description for the list of turns: the question for a
+    question, otherwise the start of the reply."""
+    if exchange.label in ("", "Ask", "Follow-up"):
+        line = _first_line(exchange.request) or _first_line(exchange.reply)
+    else:
+        line = _first_line(exchange.reply) or _first_line(exchange.request)
+    return line if len(line) <= width else line[: width - 3].rstrip() + "..."
+
+
+def clean_request(text: str, from_inkmill: bool = False) -> tuple[str, str]:
     """(command name, what the writer asked about) for one request as Inkmill
-    sent it. Requests typed in Claude Code itself come back unchanged, unnamed."""
+    sent it. Requests typed in Claude Code itself come back unchanged, unnamed,
+    unless ``from_inkmill`` says the request is known to be Inkmill's."""
     if not text.startswith(HEADER_START):
         if text.startswith(BIBLE) or text.startswith("# Manuscript: "):
             return _name_command(text, context_first=True)
-        return "", text
+        return _name_command(text, context_first=False) if from_inkmill else ("", text)
     head, _, rest = text.partition("\n\n")
     return _name_command(rest if head else text, context_first=False)
 

@@ -7,7 +7,7 @@
       "name": "AI Assistant",
       "version": "1.2.0",
       "requires_inkmill": ">=0.3",
-      "summary": "Opt-in help from Claude (through Claude Code on your Claude plan, or an API key), a local Ollama model or any OpenAI-compatible server: feedback, rewrites, synopses and a continuity check across a binder.",
+      "summary": "Opt-in help from Claude (through Claude Code on your Claude plan, or an API key), a local Ollama model or any OpenAI-compatible server: feedback, rewrites, synopses and a continuity check across a binder. The reply panel pages through earlier turns; with Claude Code that history is kept on disk, with the other providers only until Inkmill quits.",
       "author": "Aaron Dodd",
       "license": "MIT",
       "requires": [
@@ -26,12 +26,12 @@
       ],
       "path": "ai",
       "files": {
-        "README.md": "b9418d0d1a6b47cb0ece54f450d8debaf535a1c0135f31db210d626883bd1b2e",
-        "__init__.py": "a2e24a1a11929a7d45ea71454a53c164e510d9f07d13fa072e578996197f0e07",
+        "README.md": "618f6f396aab4a38455cb20d5a39f583e3c91cb829fe1d0e89496311ac6b3e4b",
+        "__init__.py": "2c0f95f4dfb3fb5a49e26ebb052d20d9726232ca42f4aab91b1fa9608ec610dd",
         "claudecode.py": "4d7957de7e41094ac81efcae3fa9927aa108c7003fcd97412f5b4ebae1683e9f",
         "client.py": "d3015312f9bdbb007041c44975ac43dc7b1c17673f19c096b31134c95a2868cd",
-        "conversation.py": "f77911b4fa404c65a6c8cf42951e3f53ed42850b1fda6e8e2a15d5d167523349",
-        "plugin.toml": "fc6e74b1e2294b700f3daa5fbe37d5e003bc5d834b5e95a083af5dac38e4bac9"
+        "conversation.py": "ed308917db1cabbaaa66a0d893d2b53a8b2f9e8c433114c3a6ad3c584574169d",
+        "plugin.toml": "380e2cd823594cd731c7c44c32b3b6d5f5e385548bbaa30fada968d4f7b48fc6"
       }
     },
     {

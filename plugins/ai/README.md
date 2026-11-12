@@ -17,6 +17,7 @@ All commands are in the AI menu (Alt+A):
 | Continuity Check | Reads the whole binder and its research notes and lists names, dates, places and facts that disagree, quoting both passages |
 | Story Bible | Opens the project's story bible, creating it if needed (see below) |
 | New Conversation | Claude Code only: start a fresh conversation for this project |
+| Conversation History... | The earlier requests and replies in this project's conversation, to pick one and read it in the reply panel (see below) |
 | Continue in Claude Code... | Claude Code only: the command that opens this project's conversation in Claude Code itself |
 | Save Conversation as Research Note... | Claude Code only: writes this project's conversation into a note in the binder's research (see below) |
 | Set API Key... | Store your key (API providers) |
@@ -26,6 +27,30 @@ In the reply panel: I inserts the reply at the cursor, R replaces the text
 you selected, 1 to 3 pick a rewrite, Q asks a follow-up question in the same
 conversation, B adds the reply to the story bible, C copies the reply, and
 Esc closes the panel (and stops a reply still arriving).
+
+### Earlier turns
+
+The reply panel shows your request above the reply: the command, the
+document it was made from, and your question or the passage it was about
+(long passages are cut to their first lines). Left and Right, or `[` and
+`]`, page back and forward through the earlier turns of the conversation,
+and the panel's title shows where you are, as in "AI: Feedback (turn 3 of
+7)". L lists every turn with its command, its document and a short
+description; type to search the requests and replies, and Enter shows the
+turn. AI > Conversation History opens the same list without asking
+anything new.
+
+On an earlier turn, I, C and B use the reply you are looking at. R and 1
+to 3 work only on the newest reply, since they change the text you had
+selected when you asked. Q always continues from the end of the
+conversation.
+
+With Claude Code, the turns come from Claude Code's own record of the
+project's conversation, so they include earlier sessions, anything you
+typed in Claude Code itself, and requests made before this version. The
+other providers keep no conversation on disk: for them Inkmill remembers
+the turns made since it started, per project, and forgets them when it
+quits. A lasting history for those providers may come later.
 
 ## Providers
 
