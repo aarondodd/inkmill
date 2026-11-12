@@ -5,9 +5,9 @@
     {
       "id": "ai",
       "name": "AI Assistant",
-      "version": "1.2.0",
+      "version": "1.3.0",
       "requires_inkmill": ">=0.3",
-      "summary": "Opt-in help from Claude (through Claude Code on your Claude plan, or an API key), a local Ollama model or any OpenAI-compatible server: feedback, rewrites, synopses and a continuity check across a binder. The reply panel pages through earlier turns; with Claude Code that history is kept on disk, with the other providers only until Inkmill quits.",
+      "summary": "Opt-in help from Claude (through Claude Code on your Claude plan, or an API key), a local Ollama model or any OpenAI-compatible server: feedback, rewrites, synopses and a continuity check across a binder. The reply panel pages through earlier turns, kept in each project folder whichever provider answered.",
       "author": "Aaron Dodd",
       "license": "MIT",
       "requires": [
@@ -26,12 +26,13 @@
       ],
       "path": "ai",
       "files": {
-        "README.md": "791f6a2007f5b74b206662c8756026fa91c8d90e1ab09a5eca40f6cd476ace9c",
-        "__init__.py": "2c0f95f4dfb3fb5a49e26ebb052d20d9726232ca42f4aab91b1fa9608ec610dd",
-        "claudecode.py": "4d7957de7e41094ac81efcae3fa9927aa108c7003fcd97412f5b4ebae1683e9f",
+        "README.md": "a241031bd44465354c813688e3a772af880743930ab2ee1c6c05b62bd4edbb50",
+        "__init__.py": "da8e5423f0a221085196d136c9048523d426fc76f33246f1ec2a2c7a6fc993c9",
+        "bible.py": "28ab542f03b4ee75861acd333826939385bc58c847aef04c93ad03672d924dac",
+        "claudecode.py": "8b029f50fd6ba7a46444afdff6aa505803299f5ee7dbc53786e1f14fae57c984",
         "client.py": "d3015312f9bdbb007041c44975ac43dc7b1c17673f19c096b31134c95a2868cd",
-        "conversation.py": "ed308917db1cabbaaa66a0d893d2b53a8b2f9e8c433114c3a6ad3c584574169d",
-        "plugin.toml": "380e2cd823594cd731c7c44c32b3b6d5f5e385548bbaa30fada968d4f7b48fc6"
+        "conversation.py": "d8db83b6b6aeecf99df08e6749222ae3a64a93b66a93ad10d38a77da8ef1f68a",
+        "plugin.toml": "3d0bd2b8d031dba06bf8801950387ad7d63935598fc1e6c9047703a78386c804"
       }
     },
     {
