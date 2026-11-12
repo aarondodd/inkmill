@@ -49,6 +49,9 @@ class Settings:
     # Also color bold and italic text (rich and reading views), for terminals
     # or fonts that cannot show bold or italic on their own.
     emphasis_colors: bool = True
+    # Show a document's front matter title in List Files, the status line and
+    # the document list, beside or instead of its file name.
+    show_titles: bool = True
     default_format: str = "markdown"
     export_style: str = "classic"
     typographer: bool = True

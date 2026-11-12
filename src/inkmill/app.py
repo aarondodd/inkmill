@@ -555,8 +555,9 @@ class InkmillApp(App):
         self._position = f"{doc_label}  Pg {row // per_page + 1} Ln {row % per_page + 1} Pos {col + 1}"
         if not position_only:
             marker = " *" if doc.dirty else ""
-            status.set_left(f"{doc.display_path}{marker}")
-            self.sub_title = doc.title
+            title = doc.display_title if self.settings.show_titles else ""
+            status.set_left(f"{doc.display_path}{marker}", title=title)
+            self.sub_title = title or doc.title
         if full or not hasattr(self, "_segments"):
             self._segments = self._segment_text()
         if full or not hasattr(self, "_words"):

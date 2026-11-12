@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.5.5
+
+- A Markdown document's front matter `title` now names it in List Files
+  (sorting and Name Search use the title too, and Look shows both title
+  and file name), in the status line before its path, and in the Ctrl+L
+  document list. File operations still use the file name. I in List Files,
+  View > Document Titles, or the `show_titles` setting turns it off. On a
+  narrow screen the status line shows only the title.
+- List Files keeps the same file highlighted when the list re-sorts
+  (changing the sort, showing hidden files, or turning titles on or off).
+  It used to stay on the same row, which could be a different file.
+- The List Files Name column narrows to fit the pane, so long names no
+  longer push the Modified column off the side behind a scrollbar.
+
 ## 0.5.4
 
 - The AI Assistant (1.3) keeps every request and reply in the project's

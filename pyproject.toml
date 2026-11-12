@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "inkmill"
-version = "0.5.4"
+version = "0.5.5"
 description = "A distraction-free terminal word processor for Markdown, with WordPerfect-style file management."
 readme = "README.md"
 license = "MIT"

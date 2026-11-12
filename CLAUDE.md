@@ -299,6 +299,26 @@ so they run after a queued arrow move (checked in tmux). A
 reply that is not JSON falls back to the reply panel. Verified with real
 claude haiku: settled facts proposed, the undecided brother left out.
 
+### 0.5.5 document titles
+
+Aaron asked (2026-11-12) to name a document by something other than its
+file name in List Files. Front matter `title` (the key Binder, Links and the
+exports already read) now shows in List Files (`Entry.shown`, I toggles),
+the status line (`fit_title`: title kept, path clipped from the left; below
+`MIN_PATH` cells only the title and the unsaved marker) and the Ctrl+L list.
+One setting, `show_titles`, default on. `documents.read_title` reads the
+first 8 KB, cached by mtime and size; `Document.display_title` parses only
+that much of the buffer, so it is cheap per keystroke. Only Markdown
+formats carry titles, and there is no heading fallback (unlike Binder's
+`title_of`). Fixed on the way: `refresh_listing` read the highlighted path
+after replacing the entries, so a re-sort kept the row, not the file.
+The Name column is capped at what the list pane has left (`_name_room`,
+recomputed on resize), since the four-digit-year date column made 32
+cells overflow a 100-column screen. `docs/screenshots/files.png` was
+regenerated from `app.save_screenshot` SVG, rendered by headless Edge and
+cropped with Pillow (shared venv); the directory label was set to the
+original demo path.
+
 ## Status
 
 - 0.1.0 committed and pushed 2026-11-02. 52 tests pass (pytest with
@@ -312,7 +332,8 @@ claude haiku: settled facts proposed, the undecided brother left out.
 - 0.5.1 (emphasis colors) merged by Aaron as PR #7.
 - 0.5.2 (format commands) merged by Aaron as PR #8.
 - 0.5.3 (save conversation as research note) merged by Aaron as PR #9.
-- 0.5.4 (lasting conversation record, import flag) on branch `ai-conversation-log`.
+- 0.5.4 (lasting conversation record, import flag, story bible update) merged by Aaron as PR #10.
+- 0.5.5 (document titles) on branch `document-titles`.
 - Not yet exercised by a human on Windows Terminal or Termux. L-2026-07-19-001
   applies: verify there before calling it done.
 

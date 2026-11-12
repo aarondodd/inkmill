@@ -449,7 +449,9 @@ async def doc_list(app: "InkmillApp") -> None:
     items = []
     for i, doc in enumerate(app.docs, 1):
         marker = " *" if doc.dirty else ""
-        items.append((str(doc.id), f"Doc {i}  {doc.display_path}{marker}"))
+        title = doc.display_title if app.settings.show_titles else ""
+        where = f"{title}  ({doc.display_path})" if title else doc.display_path
+        items.append((str(doc.id), f"Doc {i}  {where}{marker}"))
     active = app.active_document
     choice = await app.push_screen_wait(ChoiceDialog("Documents", items, str(active.id) if active else None))
     if choice:
@@ -523,6 +525,13 @@ def toggle_setting(name: str, message: str):
         app.status.flash(f"{message}: {'on' if value else 'off'}")
 
     return handler
+
+
+def toggle_titles(app: "InkmillApp") -> None:
+    app.settings.show_titles = not app.settings.show_titles
+    app.settings.save()
+    app.update_status(full=True)
+    app.status.flash(f"Document titles: {'on' if app.settings.show_titles else 'off'}")
 
 
 def reading_view(app: "InkmillApp") -> None:
@@ -917,6 +926,8 @@ def register_builtins(app: "InkmillApp") -> None:
     c("view.rich", "R&ich View", "alt+f3", description="Format Markdown as you write: bold shown bold, markup dimmed")(
         toggle_setting("rich_view", "Rich view")
     )
+    c("view.titles", "Document Tit&les",
+      description="Show front matter titles in List Files, the status line and the document list")(toggle_titles)
     c("view.emphasis_colors", "Emphasis C&olors", description="Color bold and italic text too, for terminals that cannot show them")(
         toggle_setting("emphasis_colors", "Emphasis colors")
     )
@@ -960,7 +971,7 @@ def register_builtins(app: "InkmillApp") -> None:
     ]))
     app.menus.add_menu(Menu("view", "&View", [
         M("view.theme"), M("view.menu_bar"), M("view.status_bar"), M("view.wrap"), M("view.page_width"), S(),
-        M("view.rich"), M("view.reading"), M("view.emphasis_colors"), S(),
+        M("view.rich"), M("view.reading"), M("view.emphasis_colors"), M("view.titles"), S(),
         M("view.panel_focus"), M("view.panel_close"), S(),
         M("view.palette"), M("view.plugins"), M("view.settings"),
     ]))
