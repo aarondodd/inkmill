@@ -18,6 +18,7 @@ All commands are in the AI menu (Alt+A):
 | Story Bible | Opens the project's story bible, creating it if needed (see below) |
 | New Conversation | Claude Code only: start a fresh conversation for this project |
 | Continue in Claude Code... | Claude Code only: the command that opens this project's conversation in Claude Code itself |
+| Save Conversation as Research Note... | Claude Code only: writes this project's conversation into a note in the binder's research (see below) |
 | Set API Key... | Store your key (API providers) |
 | AI Settings... | Choose the provider, model and server or program |
 
@@ -113,6 +114,23 @@ claude --resume 3f6c...
 Anything you discuss there is part of the conversation the next time you ask
 from Inkmill. Claude Code in a terminal has its usual tools and settings;
 inside Inkmill it has far fewer (see Privacy).
+
+AI > Save Conversation as Research Note writes the whole conversation so
+far into a Markdown note, so you can keep it with the book. It asks for a
+title, puts the note in the binder's `research` folder and lists it under
+the binder's research (outside a binder, the note goes in a `research`
+folder beside the document). Each of your requests is headed with the
+command it came from, as in "Me: Feedback", and shows the passage it was
+about; the note naming the project's files that Inkmill adds to every
+request is left out. Each reply keeps its final text and the files Claude
+looked at, and requests you typed in Claude Code itself are included as
+you wrote them. Saving again later makes a new note; nothing is
+overwritten. The note's front matter records the conversation's id.
+
+Inkmill reads the conversation from Claude Code's own files, under
+`~/.claude/projects` (`%USERPROFILE%\.claude\projects` on Windows), or
+under `CLAUDE_CONFIG_DIR` when that is set. If Claude Code has deleted the
+conversation, there is nothing to save.
 
 ### Letting Claude read the files
 

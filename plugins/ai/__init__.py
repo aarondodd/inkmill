@@ -35,7 +35,8 @@ from inkmill import frontmatter
 from inkmill.config import config_dir, state_dir
 from inkmill.screens.dialogs import ChoiceDialog, ConfirmDialog, InputDialog, TextDialog
 
-from . import claudecode, client
+from . import claudecode, client, conversation
+from .conversation import CONTINUITY, FEEDBACK, PASSAGE, REWRITE, SUMMARY, TEXT, WHOLE_DOCUMENT
 
 SYSTEM = (
     "You are a writing assistant inside Inkmill, a Markdown word processor. The writer stays in charge: "
@@ -317,7 +318,7 @@ def register(api):
                 prompt = f"{header(proj)}\n\n{prompt}"
             else:
                 bible = bible_text(proj).strip()
-                prompt = (f"{context}\n\n" if context else "") + (f"The writer's story bible:\n\n{bible}\n\n" if bible else "") + prompt
+                prompt = (f"{context}\n\n" if context else "") + (f"{conversation.BIBLE}{bible}\n\n" if bible else "") + prompt
             state["prompt"] = prompt
         else:
             bible = bible_text(project()).strip()
@@ -465,10 +466,10 @@ def register(api):
         """The text a command is about: the selection, or the whole document.
         With Claude Code reading files, the document is named rather than sent."""
         if sel:
-            return f"The passage:\n\n{sel[3]}"
+            return f"{PASSAGE}{sel[3]}"
         if files_on() and app.active_document is not None:
-            return "The text is the whole document the writer is working on (named above); read it."
-        return f"The text:\n\n{document_text()}"
+            return WHOLE_DOCUMENT
+        return f"{TEXT}{document_text()}"
 
     def binder_context(path: Path | None) -> tuple[str, str] | None:
         binder = api.service("binder")
@@ -511,12 +512,7 @@ def register(api):
     async def feedback(app):
         sel = selection()
         state["selection"] = None
-        prompt = (
-            "Give me feedback on this passage as an experienced editor would: what works, what does not, and the "
-            "three changes that would help most. Consider clarity, pacing, voice, dialogue and structure, and quote "
-            f"the lines you mean.\n\n{source(sel)}"
-        )
-        await ask(prompt, "Feedback")
+        await ask(f"{FEEDBACK}\n\n{source(sel)}", "Feedback")
 
     @api.command("ai.rewrite", "&Rewrite Selection...", menu="ai", enabled=lambda a: selection() is not None,
                  description="Three alternatives for the selection; pick one with 1, 2 or 3")
@@ -526,18 +522,14 @@ def register(api):
         how = await app.push_screen_wait(InputDialog("Rewrite", "How? (tighter, warmer, more formal, simpler...)", "tighter"))
         if not how:
             return
-        prompt = (
-            f"Rewrite the passage below three different ways, {how}. Keep the meaning and the writer's voice. "
-            "Reply with only the three versions, separated by lines containing just ---, without numbers or "
-            f"commentary.\n\n{sel[3]}"
-        )
+        prompt = f"{REWRITE.format(how=how)}\n\n{sel[3]}"
         await ask(prompt, f"Rewrite ({how})", can_replace=True, choices=True)
 
     @api.command("ai.summarize", "Su&mmarize", menu="ai", enabled=has_doc)
     async def summarize(app):
         sel = selection()
         state["selection"] = None
-        await ask(f"Summarize this in a short paragraph, then list its key points.\n\n{source(sel)}", "Summary")
+        await ask(f"{SUMMARY}\n\n{source(sel)}", "Summary")
 
     @api.command("ai.synopsis", "Write &Synopsis", menu="ai", enabled=has_doc,
                  description="A one- or two-sentence synopsis, saved to the document's front matter")
@@ -571,13 +563,6 @@ def register(api):
         else:
             app.replace_document_text(doc, frontmatter.update(doc.text, {"synopsis": answer}))
         app.status.flash("Synopsis saved.")
-
-    CONTINUITY = (
-        "List every continuity problem you find: characters' names, ages, looks and relationships; dates and the "
-        "order of events; places and distances; objects; and facts that contradict the research notes or the "
-        "story bible. For each, quote both passages and name the chapters. Group them by kind, most serious "
-        "first. If you find none in a group, leave it out."
-    )
 
     @api.command("ai.continuity", "&Continuity Check", menu="ai",
                  enabled=lambda a: a.active_document is not None and a.active_document.path is not None and api.service("binder") is not None,
@@ -670,6 +655,62 @@ def register(api):
                 "there is part of the same conversation the next time you ask from Inkmill."
             ),
         ))
+
+    @api.command("ai.save_conversation", "Sa&ve Conversation as Research Note...", menu="ai",
+                 enabled=lambda a: is_cli() and sessions().get(project().folder) is not None,
+                 description="Claude Code: write this project's conversation into a research note")
+    async def save_conversation(app):
+        proj = project()
+        session = sessions().get(proj.folder)
+        if session is None:
+            app.status.flash("There is no conversation for this project yet.")
+            return
+        source = conversation.find(session)
+        if source is None:
+            app.notify(
+                f"Claude Code's copy of this conversation ({session}) is not under "
+                f"{conversation.claude_home() / 'projects'}. It may have been deleted, or Claude Code keeps "
+                "its files elsewhere (set CLAUDE_CONFIG_DIR before starting Inkmill).",
+                severity="warning", timeout=10,
+            )
+            return
+        try:
+            exchange = await api.run_in_thread(conversation.turns, source)
+        except OSError as exc:
+            app.notify(f"Could not read the conversation: {exc}", severity="error")
+            return
+        if not exchange:
+            app.status.flash("The conversation has nothing in it yet.")
+            return
+        today = datetime.date.today().isoformat()
+        title = await app.push_screen_wait(InputDialog(
+            "Save Conversation as Research Note", "Title:", f"AI conversation {today}"))
+        if not title or not title.strip():
+            return
+        title = title.strip()
+        asked = sum(1 for t in exchange if t.role == "me")
+        intro = (f"A conversation with Claude about {proj.label}, {asked} request(s), saved {today}. "
+                 "Requests made from Inkmill are shown without the note naming the project's files.")
+        body = conversation.to_markdown(exchange, title, intro)
+        fields = {"source": f"claude-code session {session}", "saved": today}
+        binder = api.service("binder")
+        doc = app.active_document
+        if binder is not None and hasattr(binder, "add_research_note") and doc is not None and doc.path is not None:
+            target = binder.add_research_note(doc.path, title, body, fields)
+        else:
+            folder = proj.folder / "research"
+            folder.mkdir(parents=True, exist_ok=True)
+            stem = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")[:60] or "ai-conversation"
+            target = folder / f"{stem}.md"
+            n = 2
+            while target.exists():
+                target = folder / f"{stem}-{n}.md"
+                n += 1
+            head = f'---\ntitle: "{title.replace(chr(34), chr(39))}"\ntype: research\n'
+            head += "".join(f"{k}: {v}\n" for k, v in fields.items()) + "---\n"
+            target.write_text(head + body, encoding="utf-8")
+        await app.open_path(target)
+        app.status.flash(f"Saved {asked} request(s) and their replies to {target.name}.")
 
     async def set_key(app):
         p = provider()

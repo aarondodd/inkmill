@@ -70,7 +70,7 @@ def test_repository_plugins_load(tmp_path):
     assert all(p.skipped is None for p in app.plugin_info), [(p.name, p.skipped) for p in app.plugin_info]
     for menu in ("tools", "git", "review", "binder", "ai"):
         assert app.menus.get(menu) is not None, menu
-    assert {p.name: p.version for p in app.plugin_info}["binder"] == "1.1.0"
+    assert {p.name: p.version for p in app.plugin_info}["binder"] == "1.2.0"
     assert app.commands.key_conflicts() == {}
 
 

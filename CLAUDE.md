@@ -236,6 +236,22 @@ selection), updated from `_watch_selection`. Real-terminal check: keys sent
 back to back with tmux send-keys gave a garbled run; pacing them 0.4 s apart
 worked (cause not investigated).
 
+### 0.5.3 save conversation
+
+Aaron asked (2026-11-12) to keep a several-turn Claude Code conversation in
+the binder's research. AI > Save Conversation as Research Note reads the
+session id from the sessions store and the transcript from
+`<CLAUDE_CONFIG_DIR or ~/.claude>/projects/*/<id>.jsonl` (globbed, since
+Claude Code's folder-name encoding is its own). `plugins/ai/conversation.py`
+holds the command wording (FEEDBACK, SUMMARY, REWRITE, CONTINUITY, source
+markers) so the parser can name each request's command and drop the
+"Project folder:" header. Requests are user records with string content;
+tool results are user records with list content and no text; each reply
+block is its own assistant record. Replies keep only text after the last
+tool use, like the panel. Binder 1.2 `Service.add_research_note` (shared
+with Clip Web Page) writes and links the note, never overwriting. Verified
+end to end against real claude with haiku.
+
 ## Status
 
 - 0.1.0 committed and pushed 2026-11-02. 52 tests pass (pytest with
@@ -247,7 +263,8 @@ worked (cause not investigated).
 - 0.4.1 (update checking and self-update) merged by Aaron as PR #4.
 - 0.4.2 (status line, cursor scroll) and 0.5.0 (rich and reading views) merged by Aaron as PRs #5 and #6.
 - 0.5.1 (emphasis colors) merged by Aaron as PR #7.
-- 0.5.2 (format commands) on branch `format-wrap-0.5.2`.
+- 0.5.2 (format commands) merged by Aaron as PR #8.
+- 0.5.3 (save conversation as research note) on branch `ai-save-conversation`.
 - Not yet exercised by a human on Windows Terminal or Termux. L-2026-07-19-001
   applies: verify there before calling it done.
 

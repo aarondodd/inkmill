@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.3
+
+- AI > Save Conversation as Research Note (AI Assistant 1.2, Claude Code
+  provider) writes the project's conversation with Claude into a Markdown
+  note in the binder's research folder and lists it under the binder's
+  research. Requests are headed with the command they came from and keep
+  the passage they were about; the note naming the project's files is left
+  out.
+- Binder 1.2 lets other plugins add research notes.
+
 ## 0.5.2
 
 - Bold, Italic, Strikethrough and Inline Code no longer insert an empty
