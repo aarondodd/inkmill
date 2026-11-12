@@ -5,9 +5,9 @@
     {
       "id": "ai",
       "name": "AI Assistant",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "requires_inkmill": ">=0.3",
-      "summary": "Opt-in help from Claude (through Claude Code on your Claude plan, or an API key), a local Ollama model or any OpenAI-compatible server: feedback, rewrites, synopses and a continuity check across a binder.",
+      "summary": "Opt-in help from Claude (through Claude Code on your Claude plan, or an API key), a local Ollama model or any OpenAI-compatible server: feedback, rewrites, synopses and a continuity check across a binder. The reply panel pages through earlier turns; with Claude Code that history is kept on disk, with the other providers only until Inkmill quits.",
       "author": "Aaron Dodd",
       "license": "MIT",
       "requires": [
@@ -26,30 +26,31 @@
       ],
       "path": "ai",
       "files": {
-        "README.md": "bd09cff1710058cfb526dce6e16dd47a5530701a616fcb437e95cf5076f4859f",
-        "__init__.py": "aebafab1472d37fba85c9ec68c35e5c42cc12141a5b4464c38ad4d9de8930dc5",
+        "README.md": "791f6a2007f5b74b206662c8756026fa91c8d90e1ab09a5eca40f6cd476ace9c",
+        "__init__.py": "2c0f95f4dfb3fb5a49e26ebb052d20d9726232ca42f4aab91b1fa9608ec610dd",
         "claudecode.py": "4d7957de7e41094ac81efcae3fa9927aa108c7003fcd97412f5b4ebae1683e9f",
         "client.py": "d3015312f9bdbb007041c44975ac43dc7b1c17673f19c096b31134c95a2868cd",
-        "plugin.toml": "afb9ae030922cbaa629d395ad8cc3a94522d3a09305a82faa6938989a9c142fc"
+        "conversation.py": "ed308917db1cabbaaa66a0d893d2b53a8b2f9e8c433114c3a6ad3c584574169d",
+        "plugin.toml": "380e2cd823594cd731c7c44c32b3b6d5f5e385548bbaa30fada968d4f7b48fc6"
       }
     },
     {
       "id": "binder",
       "name": "Binder",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "requires_inkmill": ">=0.3",
       "summary": "Chapters, an overall binder document, related notes and research in front matter, with an outline view and manuscript export.",
       "author": "Aaron Dodd",
       "license": "MIT",
       "path": "binder",
       "files": {
-        "README.md": "9101fb3fed7bcd538ae451c7f0abbf1a8b6298f3b3dc6f7ab0069e0d5762897f",
-        "__init__.py": "dd48fb82e5de008d6edd3b633bf9f7e81cd3ffcabb41580081eccb24c77d019a",
+        "README.md": "18254e75449a8ace3dfa0c46bb1e548beafb5f838a609fa5460682dd52b21e24",
+        "__init__.py": "3616d5b22484fc4f9488bcbd706de672e004ac5b7a255d096528b7ecd7956a61",
         "clip.py": "c5c2cb8b979e611563c471f664241ae6eae1e9b5a12b0d5e53d9d6e2c8866b48",
         "model.py": "c5ca8780e66c6713f83745ca15b6196e9f4c2b99f7096654b668d7b695b6efe2",
         "navigator.py": "34d82db81d2107af18a70fa20e160f129da5ecd7a55afcc49c9ee6296d1af9ac",
         "outline.py": "0eb640e9c0b87ade387432ca32c4b5d0b227932863fc366b2af56b76b35988c7",
-        "plugin.toml": "c397f7f8e0216235b267bef0fdc3e22d89325971ba330a3c847cb972bc08fb00"
+        "plugin.toml": "6efea8e0efb47f319de365b6578b2f8351c5a073f564783fdfecf57829a789d8"
       }
     },
     {

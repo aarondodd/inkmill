@@ -316,6 +316,24 @@ def register(api):
         folder = holder.parent / str(api.settings.get("research_folder", "research"))
         return holder, folder
 
+    def add_note(path: Path, title: str, body: str, fields: dict[str, str] | None = None) -> Path:
+        """Write a new research note beside ``path``'s binder (or ``path``
+        itself, outside a binder) and list it there. Never overwrites."""
+        holder, folder = research_home(model.norm(path))
+        stem = _slug(title)[:60]
+        target = folder / f"{stem}.md"
+        n = 2
+        while target.exists():
+            target = folder / f"{stem}-{n}.md"
+            n += 1
+        folder.mkdir(parents=True, exist_ok=True)
+        head = f'---\ntitle: "{title.replace(chr(34), chr(39))}"\ntype: research\n'
+        head += "".join(f"{key}: {value}\n" for key, value in (fields or {}).items())
+        text = model.set_relation(head + "---\n" + body, target, "parent", [holder])
+        write_text(target, text)
+        write(holder, model.add_relation(read(holder) or "", holder, "research", target))
+        return target
+
     @api.command("binder.note", "New Research &Note...", menu="binder", separator=True, enabled=has_path,
                  description="A note listed under the binder's research, not part of the manuscript")
     async def new_note(app):
@@ -350,18 +368,10 @@ def register(api):
             app.notify(f"Could not fetch the page: {exc}", severity="error")
             return
         title = title or url
-        target = folder / f"{_slug(title)[:60]}.md"
-        n = 2
-        while target.exists():
-            target = folder / f"{_slug(title)[:60]}-{n}.md"
-            n += 1
-        folder.mkdir(parents=True, exist_ok=True)
         from datetime import date
 
-        head = f'---\ntitle: "{title.replace(chr(34), chr(39))}"\ntype: research\nsource: {url}\nclipped: {date.today().isoformat()}\n---\n'
-        text = model.set_relation(head + f"Source: <{url}>\n\n" + body, target, "parent", [holder])
-        write_text(target, text)
-        write(holder, model.add_relation(read(holder) or "", holder, "research", target))
+        target = add_note(path, title, f"Source: <{url}>\n\n" + body,
+                          {"source": url, "clipped": date.today().isoformat()})
         await app.open_path(target)
         app.status.flash(f"Clipped {len(body.split()):,} words into {target.name}.")
 
@@ -510,6 +520,12 @@ def register(api):
                 return None
             return {"title": model.title_of(holder, text), "words": model.binder_words(holder, read),
                     "target": target, "deadline": model.field_value(text, "deadline")}
+
+        @staticmethod
+        def add_research_note(path: Path, title: str, body: str, fields: dict[str, str] | None = None) -> Path:
+            """A new note in the research folder of ``path``'s binder, listed
+            under its research (outside a binder, under ``path``'s own)."""
+            return add_note(path, title, body, fields)
 
         @staticmethod
         def set_field(path: Path, key: str, value: str | None) -> None:

@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.5.3
+
+- AI > Save Conversation as Research Note (AI Assistant 1.2, Claude Code
+  provider) writes the project's conversation with Claude into a Markdown
+  note in the binder's research folder and lists it under the binder's
+  research. Requests are headed with the command they came from and keep
+  the passage they were about; the note naming the project's files is left
+  out.
+- The AI reply panel shows your request above the reply, and Left and
+  Right (or `[` and `]`) page through the earlier turns of the
+  conversation. L, or AI > Conversation History, lists every turn with a
+  short description, searchable by typing. With Claude Code the turns come
+  from its own record of the conversation; the other providers keep them
+  only until Inkmill quits.
+- Binder 1.2 lets other plugins add research notes.
+
 ## 0.5.2
 
 - Bold, Italic, Strikethrough and Inline Code no longer insert an empty

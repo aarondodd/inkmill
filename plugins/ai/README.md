@@ -17,7 +17,9 @@ All commands are in the AI menu (Alt+A):
 | Continuity Check | Reads the whole binder and its research notes and lists names, dates, places and facts that disagree, quoting both passages |
 | Story Bible | Opens the project's story bible, creating it if needed (see below) |
 | New Conversation | Claude Code only: start a fresh conversation for this project |
+| Conversation History... | The earlier requests and replies in this project's conversation, to pick one and read it in the reply panel (see below) |
 | Continue in Claude Code... | Claude Code only: the command that opens this project's conversation in Claude Code itself |
+| Save Conversation as Research Note... | Claude Code only: writes this project's conversation into a note in the binder's research (see below) |
 | Set API Key... | Store your key (API providers) |
 | AI Settings... | Choose the provider, model and server or program |
 
@@ -25,6 +27,30 @@ In the reply panel: I inserts the reply at the cursor, R replaces the text
 you selected, 1 to 3 pick a rewrite, Q asks a follow-up question in the same
 conversation, B adds the reply to the story bible, C copies the reply, and
 Esc closes the panel (and stops a reply still arriving).
+
+### Earlier turns
+
+The reply panel shows your request above the reply: the command, the
+document it was made from, and your question or the passage it was about
+(long passages are cut to their first lines). Left and Right, or `[` and
+`]`, page back and forward through the earlier turns of the conversation,
+and the panel's title shows where you are, as in "AI: Feedback (turn 3 of
+7)". L lists every turn with its command, its document and a short
+description; type to search the requests and replies, and Enter shows the
+turn. AI > Conversation History opens the same list without asking
+anything new.
+
+On an earlier turn, I, C and B use the reply you are looking at. R and 1
+to 3 work only on the newest reply, since they change the text you had
+selected when you asked. Q always continues from the end of the
+conversation.
+
+With Claude Code, the turns come from Claude Code's own record of the
+project's conversation, so they include earlier sessions, anything you
+typed in Claude Code itself, and requests made before this version. The
+other providers keep no conversation on disk: for them Inkmill remembers
+the turns made since it started, per project, and forgets them when it
+quits. A lasting history for those providers may come later.
 
 ## Providers
 
@@ -99,6 +125,51 @@ replies start missing earlier details. Very long conversations are
 summarized by Claude Code to make room ("compacted"), and a summary keeps
 less detail than the original. That is what the story bible is for.
 
+### From an idea to a binder
+
+A document that is not in a binder shares its conversation with every
+other loose document in the same folder. So give each idea its own folder
+from the start (`ideas/lighthouse/lighthouse.md`, not a single `ideas/`
+folder of drafts), and its conversation stays its own.
+
+When the idea grows into a project, keep the conversation by putting the
+binder in that same folder:
+
+1. Open the idea's document.
+2. Choose Binder > New Binder Document... and accept the folder it offers
+   (the document's own). The document becomes the binder's first entry.
+3. Carry on. The binder's folder is the folder the conversation already
+   belongs to, so the next AI request continues it, and Conversation
+   History shows every earlier turn.
+
+New chapters can go in a subfolder (`chapters/`): the project is the
+binder's folder, so they share the conversation too.
+
+To add the idea to a binder that already exists in another folder, the
+conversation cannot come along: Claude Code only continues a conversation
+from the folder it was started in, so inside the binder you get the
+binder's conversation instead. Keep the old one as a note:
+
+1. With the document still outside the binder, choose AI > Save
+   Conversation as Research Note.... The note goes in a `research` folder
+   beside the document.
+2. If you want the file beside the binder's chapters, move it there
+   first with List Files (F5), which updates its links.
+3. With the idea's document open, choose Binder > Link Document..., then
+   "Binder (parent document)", and pick the binder's file. Answer Yes when
+   asked to link back, so the document joins the binder's contents.
+4. Still in that document, choose Binder > Add Research... and pick the
+   saved note. It is now listed with the binder's research.
+5. When you next ask something, name the note (for example "first read
+   the research note ai-conversation-2026-11-12.md"). With project files
+   on, Claude finds and reads it.
+
+The old conversation also stays in Claude Code: run `claude --resume` in a
+terminal in the idea's old folder to find it. That lasts until Claude Code
+cleans it up; by default it removes conversations unused for about 30
+days, and its `cleanupPeriodDays` setting changes that. The research note
+is the copy that lasts.
+
 Write Synopsis is the one command kept out of the conversation, so
 generating synopses for twenty chapters does not crowd it.
 
@@ -113,6 +184,23 @@ claude --resume 3f6c...
 Anything you discuss there is part of the conversation the next time you ask
 from Inkmill. Claude Code in a terminal has its usual tools and settings;
 inside Inkmill it has far fewer (see Privacy).
+
+AI > Save Conversation as Research Note writes the whole conversation so
+far into a Markdown note, so you can keep it with the book. It asks for a
+title, puts the note in the binder's `research` folder and lists it under
+the binder's research (outside a binder, the note goes in a `research`
+folder beside the document). Each of your requests is headed with the
+command it came from, as in "Me: Feedback", and shows the passage it was
+about; the note naming the project's files that Inkmill adds to every
+request is left out. Each reply keeps its final text and the files Claude
+looked at, and requests you typed in Claude Code itself are included as
+you wrote them. Saving again later makes a new note; nothing is
+overwritten. The note's front matter records the conversation's id.
+
+Inkmill reads the conversation from Claude Code's own files, under
+`~/.claude/projects` (`%USERPROFILE%\.claude\projects` on Windows), or
+under `CLAUDE_CONFIG_DIR` when that is set. If Claude Code has deleted the
+conversation, there is nothing to save.
 
 ### Letting Claude read the files
 
