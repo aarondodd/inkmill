@@ -27,6 +27,7 @@ from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import Screen
 from textual.widgets import DataTable, Input, Label, Static
 
+from ..documents import read_title
 from .dialogs import ConfirmDialog, InputDialog
 
 if TYPE_CHECKING:
@@ -43,10 +44,16 @@ class Entry:
     size: int
     mtime: float
     label: str | None = None  # For "." and "..".
+    title: str = ""  # Front matter title, when titles are shown.
 
     @property
     def name(self) -> str:
         return self.label or self.path.name
+
+    @property
+    def shown(self) -> str:
+        """What the Name column shows: the title if there is one, else the file name."""
+        return self.title or self.name
 
 
 def human_size(n: int) -> str:
@@ -73,8 +80,15 @@ def list_directory(
     extensions: set[str] | None = None,
     sort: str = "name",
     name_filter: str = "",
+    title_extensions: set[str] | None = None,
 ) -> list[Entry]:
+    """Folder entries, folders first.
+
+    With ``title_extensions``, files with those extensions carry their front
+    matter title, which the name search also matches and the name sort uses.
+    """
     entries: list[Entry] = []
+    needle = name_filter.lower()
     with os.scandir(directory) as it:
         for item in it:
             path = Path(item.path)
@@ -85,13 +99,16 @@ def list_directory(
                 continue
             if not show_hidden and is_hidden(path, st):
                 continue
-            if name_filter and name_filter.lower() not in item.name.lower():
-                continue
             if not is_dir and extensions is not None and path.suffix.lower() not in extensions:
                 continue
-            entries.append(Entry(path, is_dir, 0 if is_dir else st.st_size, st.st_mtime))
+            title = ""
+            if title_extensions and not is_dir and path.suffix.lower() in title_extensions:
+                title = read_title(path)
+            if needle and needle not in item.name.lower() and needle not in title.lower():
+                continue
+            entries.append(Entry(path, is_dir, 0 if is_dir else st.st_size, st.st_mtime, title=title))
     key = {
-        "name": lambda e: e.name.lower(),
+        "name": lambda e: e.shown.lower(),
         "modified": lambda e: -e.mtime,
         "size": lambda e: -e.size,
     }[sort]
@@ -229,7 +246,7 @@ class FileManagerScreen(Screen):
                 "* Mark",
                 "N Name Search",
             ]
-        extra = ["H Home", ". Hidden", "T Type filter", "S Sort", "Esc Close"]
+        extra = ["H Home", ". Hidden", "T Type filter", "S Sort", "I Titles", "Esc Close"]
         text = Text()
         for i, item in enumerate(items + extra):
             key, _, label = item.partition(" ")
@@ -255,11 +272,14 @@ class FileManagerScreen(Screen):
         narrow = event.size.width < 90
         pane = self.query_one("#fm-preview-pane")
         pane.set_class(narrow and not self.has_class("-look"), "-hidden")
+        self.call_after_refresh(self.refresh_listing)
 
     # -- listing -----------------------------------------------------------
 
     def refresh_listing(self, select: Path | None = None) -> None:
         table = self.query_one(FileTable)
+        # Before the entries change, so a re-sort keeps the same file highlighted.
+        previous = select or self.current_path()
         exts = self.inkmill.formats.document_extensions() if self.documents_only else None
         try:
             entries = list_directory(
@@ -268,6 +288,7 @@ class FileManagerScreen(Screen):
                 extensions=exts,
                 sort=self.sort,
                 name_filter=self.name_filter,
+                title_extensions=self._title_extensions(),
             )
         except OSError as exc:
             self.notify(f"Cannot read {self.directory}: {exc.strerror or exc}", severity="error")
@@ -277,16 +298,15 @@ class FileManagerScreen(Screen):
         if parent != self.directory:
             head.append(Entry(parent, True, 0, 0.0, label=".."))
         self.entries = head + entries
-        previous = select or self.current_path()
         table.clear()
-        name_width = max(12, min(32, max((len(e.name) for e in self.entries), default=12) + 2))
+        name_width = max(12, min(self._name_room(), max((len(e.shown) for e in self.entries), default=12) + 2))
         for entry in self.entries:
             mark = "*" if entry.path in self.marked else " "
             if entry.is_dir:
                 name = Text(entry.name + os.sep, style="bold")
                 size = Text("<Dir>", justify="right")
             else:
-                name = Text(entry.name)
+                name = Text(entry.shown)
                 size = Text(human_size(entry.size), justify="right")
             when = datetime.fromtimestamp(entry.mtime).strftime("%Y-%m-%d %H:%M") if entry.mtime else ""
             name.truncate(name_width, overflow="ellipsis", pad=True)
@@ -298,6 +318,20 @@ class FileManagerScreen(Screen):
                     table.move_cursor(row=i)
                     break
         self.update_preview()
+
+    def _name_room(self) -> int:
+        """Widest the Name column can be without a horizontal scrollbar, up to 32."""
+        width = self.query_one("#fm-list-pane").content_size.width
+        if width <= 0:
+            return 32
+        # Mark, size and date columns plus one cell of padding each side of
+        # every column, and the vertical scrollbar.
+        return max(12, min(32, width - (1 + 8 + 16) - 4 * 2 - 1))
+
+    def _title_extensions(self) -> set[str] | None:
+        if not self.inkmill.settings.show_titles:
+            return None
+        return {ext for fmt in self.inkmill.formats for ext in fmt.extensions if fmt.markdown}
 
     def _update_header(self) -> None:
         label = str(self.directory)
@@ -318,6 +352,8 @@ class FileManagerScreen(Screen):
             parts.append(f"Filter: {self.name_filter}")
         if self.show_hidden:
             parts.append("Hidden shown")
+        if any(e.title for e in self.entries):
+            parts.append("Titles shown")
         self.query_one("#fm-info", Label).update("  ".join(p for p in parts if p))
 
     def current_entry(self) -> Entry | None:
@@ -367,6 +403,8 @@ class FileManagerScreen(Screen):
             return
         self.preview_path = entry.path
         title.update(f"Look: {entry.name}  ({'rendered' if self._renders(entry.path) else 'text'})")
+        if entry.title:
+            title.update(f"Look: {entry.title}  ({entry.name})")
         self._load_preview(entry.path)
 
     def _renders(self, path: Path) -> bool:
@@ -479,6 +517,7 @@ class FileManagerScreen(Screen):
             "t": self.action_type_filter,
             "s": self.action_sort,
             "v": self.action_toggle_render,
+            "i": self.action_titles,
         }
         handler = handlers.get(event.key)
         if handler is None:
@@ -524,6 +563,13 @@ class FileManagerScreen(Screen):
     def action_sort(self) -> None:
         self.sort = SORTS[(SORTS.index(self.sort) + 1) % len(SORTS)]
         self.refresh_listing()
+
+    def action_titles(self) -> None:
+        settings = self.inkmill.settings
+        settings.show_titles = not settings.show_titles
+        settings.save()
+        self.refresh_listing()
+        self.inkmill.update_status()
 
     def action_toggle_render(self) -> None:
         self.rendered_preview = not self.rendered_preview

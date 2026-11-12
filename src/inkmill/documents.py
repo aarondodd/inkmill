@@ -8,6 +8,7 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from . import frontmatter
 from .formats import DocumentFormat
 
 _ids = itertools.count(1)
@@ -15,6 +16,38 @@ _ids = itertools.count(1)
 # Markdown punctuation that should not count as words.
 _MARKUP = re.compile(r"(^|\s)(#{1,6}|[-*+]|\d+[.)]|>+|\|)(?=\s)|[`*_~|]|\[\^?|\]\([^)]*\)|\]")
 _WORD = re.compile(r"[\w'-]+", re.UNICODE)
+
+
+# Front matter is read only from the start of a file, so a title costs the
+# same in a long manuscript as in a short note.
+TITLE_BYTES = 8192
+_title_cache: dict[str, tuple[float, int, str]] = {}
+
+
+def title_from_text(text: str) -> str:
+    """The front matter ``title`` of ``text``, or "" when it has none."""
+    value = frontmatter.read(text[:TITLE_BYTES].replace("\r\n", "\n")).get("title")
+    return " ".join(value.split()) if isinstance(value, str) else ""
+
+
+def read_title(path: Path) -> str:
+    """The front matter ``title`` of the file at ``path``, cached by size and mtime."""
+    try:
+        st = path.stat()
+    except OSError:
+        return ""
+    key = str(path)
+    cached = _title_cache.get(key)
+    if cached and cached[0] == st.st_mtime and cached[1] == st.st_size:
+        return cached[2]
+    try:
+        with open(path, "rb") as fh:
+            head = fh.read(TITLE_BYTES)
+    except OSError:
+        return ""
+    title = "" if b"\0" in head else title_from_text(head.decode("utf-8", errors="replace"))
+    _title_cache[key] = (st.st_mtime, st.st_size, title)
+    return title
 
 
 def count_words(text: str) -> int:
@@ -46,6 +79,11 @@ class Document:
         if self.path is not None:
             return self.path.name
         return f"Untitled {self.untitled_number}" if self.untitled_number > 1 else "Untitled"
+
+    @property
+    def display_title(self) -> str:
+        """The front matter title of a Markdown document, or ""."""
+        return title_from_text(self.text) if self.format.markdown else ""
 
     @property
     def display_path(self) -> str:

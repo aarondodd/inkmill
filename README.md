@@ -187,8 +187,24 @@ The numbered options match WordPerfect 5.1, and letter keys work too:
 | N, / | Name search, filtering as you type |
 | H, Backspace | Home folder, parent folder |
 | . , T, S | Show hidden files, documents only, change the sort |
+| I | Front matter titles on or off |
 
 Save As uses the same screen with a file name field at the bottom.
+
+A Markdown document can carry a name other than its file name: give it a
+`title` in its front matter.
+
+```markdown
+---
+title: The Crossing
+---
+```
+
+List Files then shows "The Crossing" in place of `ch-03-crossing.md`
+(sorting and Name Search use it too, and Look names both), the status line
+shows the title before the path, and Ctrl+L lists it beside the path.
+Renaming, copying and Save As still work on the file name. View > Document
+Titles, I in List Files, or the `show_titles` setting turns this off.
 
 While a document has unsaved changes, Inkmill copies it to its state folder
 every 30 seconds. If the terminal dies, File > Recover Unsaved Work brings it
@@ -248,6 +264,7 @@ restore_session = true
 recovery_interval = 30    # seconds, 0 turns crash recovery off
 rich_view = false         # format Markdown while you write (View > Rich View)
 emphasis_colors = true    # also color bold and italic text (View > Emphasis Colors)
+show_titles = true        # front matter titles in List Files, the status line and Ctrl+L
 
 [keys]                    # command id = comma-separated keys
 "file.save" = "ctrl+s,f10"
