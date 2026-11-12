@@ -263,6 +263,30 @@ now. `TurnList` filters across request and reply text. Checked in tmux
 with the plugin symlinked into a scratch `<config>/plugins` (the app loads
 plugins from there, not the repo).
 
+### 0.5.4 lasting conversation record
+
+Aaron asked (2026-11-12) for conversations that outlive Claude Code's
+30-day `cleanupPeriodDays` clean-up, a way to page saved notes, and an
+import helper. `conversation.Log` appends JSON lines to
+`<project>/.inkmill/ai-conversation.jsonl` (types `turn`, `reset`; a turn
+carries session, provider, source and a UTC `time` from `stamp()`).
+`history()` syncs a Claude Code transcript into the log by count per
+session (`Log.sync` appends `items[count(session):]`), so sync must run
+before each live append; `run()` calls `history()` before sending, which
+does that. Display sorts by time. `run_cli` puts a `SEED_START...SEED_END`
+block before the first request of a new session when the log holds turns
+since the last reset (files on: writes `.inkmill/earlier-conversation.md`
+and names it; files off: inlines up to max_context_chars/4);
+`strip_seed()` removes it when a transcript is read. New Conversation
+syncs, forgets the session and writes a reset. `from_markdown()` reverses
+`to_markdown()` for AI > Show Saved Conversation. `claudecode.Reply.tools`
+carries the tool calls so live turns record Looked at. Core
+`--import-conversation FOLDER --from SOURCE` finds the `ai` plugin with
+`plugins.discover()` and calls its module-level `import_conversation`
+(sources: linked session, `all` by transcript `cwd`, session id, `.jsonl`,
+saved `.md` note deduped by label, request and reply). Setting
+`keep_history` (default true) turns the log off.
+
 ## Status
 
 - 0.1.0 committed and pushed 2026-11-02. 52 tests pass (pytest with
@@ -275,15 +299,14 @@ plugins from there, not the repo).
 - 0.4.2 (status line, cursor scroll) and 0.5.0 (rich and reading views) merged by Aaron as PRs #5 and #6.
 - 0.5.1 (emphasis colors) merged by Aaron as PR #7.
 - 0.5.2 (format commands) merged by Aaron as PR #8.
-- 0.5.3 (save conversation as research note) on branch `ai-save-conversation`.
+- 0.5.3 (save conversation as research note) merged by Aaron as PR #9.
+- 0.5.4 (lasting conversation record, import flag) on branch `ai-conversation-log`.
 - Not yet exercised by a human on Windows Terminal or Termux. L-2026-07-19-001
   applies: verify there before calling it done.
 
 ## Ideas not built yet
 
-AI history follow-ups Aaron wants remembered (2026-11-12): a lasting
-history for the API, Ollama and OpenAI-compatible providers (they keep
-turns only in memory now); replying from an earlier turn, which with Claude
+AI history follow-ups Aaron wants remembered (2026-11-12): replying from an earlier turn, which with Claude
 Code means a branched session (`--fork-session`); and a key to show a long
 request passage in full instead of its first 8 lines.
 

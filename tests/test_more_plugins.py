@@ -251,7 +251,7 @@ async def test_ai_rewrite_picks_an_alternative(tmp_path, fake_ai):
         assert "127.0.0.1" in str(app.settings.plugins["ai"]["consented"])
 
 
-async def test_ai_history_is_kept_in_memory_for_other_providers(tmp_path, fake_ai):
+async def test_ai_history_is_kept_in_the_project_for_other_providers(tmp_path, fake_ai):
     doc = tmp_path / "d.md"
     doc.write_text("A long and winding sentence.\n")
     ai_settings = {"provider": "ollama", "base_url": fake_ai, "model": "llama3.1"}
@@ -279,3 +279,27 @@ async def test_ai_history_is_kept_in_memory_for_other_providers(tmp_path, fake_a
         await pilot.press("enter")
         assert await wait_for(pilot, lambda: app.panel.content is not panel and app.panel.content.done)
         assert [e.label for e in app.panel.content.entries] == ["Summarize", "Summarize", "Follow-up"]
+
+    # The turns outlive the app: they are in the document's folder.
+    assert (tmp_path / ".inkmill" / "ai-conversation.jsonl").is_file()
+    again = app_with(tmp_path, "ai", paths=[doc], plugins={"ai": ai_settings})
+    async with again.run_test(size=(120, 30)) as pilot:
+        again.run_command("ai.history")
+        assert await wait_for(pilot, lambda: type(again.screen).__name__ == "TurnList")
+        assert again.screen.query_one(OptionList).option_count == 3
+
+
+async def test_ai_history_stays_in_memory_when_the_log_is_off(tmp_path, fake_ai):
+    doc = tmp_path / "d.md"
+    doc.write_text("A sentence.\n")
+    ai_settings = {"provider": "ollama", "base_url": fake_ai, "model": "llama3.1", "keep_history": False,
+                   "consented": ["127.0.0.1:" + fake_ai.rsplit(":", 1)[1].split("/")[0]]}
+    app = app_with(tmp_path, "ai", paths=[doc], plugins={"ai": ai_settings})
+    async with app.run_test(size=(120, 30)) as pilot:
+        app.run_command("ai.summarize")
+        if await wait_for(pilot, lambda: type(app.screen).__name__ == "ConfirmDialog", timeout=1):
+            await pilot.press("a")
+        assert await wait_for(pilot, lambda: app.panel.visible and app.panel.content.done)
+        app.run_command("ai.history")
+        assert await wait_for(pilot, lambda: type(app.screen).__name__ == "TurnList")
+    assert not (tmp_path / ".inkmill").exists()

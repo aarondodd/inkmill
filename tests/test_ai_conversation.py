@@ -5,10 +5,12 @@ import sys
 from pathlib import Path
 
 from inkmill import frontmatter as fm
-from pluginhelp import app_with, load_module, wait_for
+from inkmill.plugins import _load_package
+from pluginhelp import PLUGINS, app_with, load_module, wait_for
 
 conv = load_module("ai", "conversation")
 cc = load_module("ai", "claudecode")
+ai = _load_package(PLUGINS / "ai")
 FAKE = Path(__file__).with_name("fake_claude.py")
 HEADER = "Project folder: /book\nBinder (chapter order and research list): book.md\nThe writer is working on: chapters/one.md"
 
@@ -213,12 +215,160 @@ async def test_reply_panel_pages_through_the_claude_code_conversation(tmp_path, 
 
         # AI > Conversation History opens the list without asking anything.
         await pilot.press("escape")
-        # (The fake claude writes no transcript, so the list holds the two saved turns.)
+        # (The fake claude writes no transcript; Inkmill's log holds the two copied turns and the Ask.)
         app.run_command("ai.history")
         assert await wait_for(pilot, lambda: type(app.screen).__name__ == "TurnList")
-        assert app.screen.query_one("OptionList").option_count == 2
-        await pilot.press("enter")
+        assert app.screen.query_one("OptionList").option_count == 3
+        await pilot.press("up", "enter")
         assert await wait_for(pilot, lambda: app.panel.visible and app.panel.content is not panel)
         assert app.panel.content.index == 1 and app.panel.content.text == "Tighten the middle."
         await pilot.press("i")
         assert "Tighten the middle." in editor.text
+
+    log = conv.Log(book)
+    kept = log.exchanges()
+    assert [e.label for e in kept] == ["Ask", "Feedback", "Ask"]
+    assert kept[2].request.startswith("Is the name good?") and kept[2].reply
+    assert {r["session"] for r in log.records()} == {"sess-2"}
+
+
+def test_log_syncs_claude_code_turns_once_and_marks_new_conversations(tmp_path):
+    log = conv.Log(tmp_path)
+    turns = [conv.Exchange("Ask", "a?", "A.", time="2026-11-01T00:00:00Z"),
+             conv.Exchange("Feedback", "", "F.", time="2026-11-02T00:00:00Z")]
+    assert log.sync("s1", turns[:1]) == 1
+    assert log.sync("s1", turns) == 1 and log.sync("s1", turns) == 0
+    log.append(conv.Exchange("Ask", "b?", "B.", time="2026-10-01T00:00:00Z"), provider="ollama")
+    assert [e.request for e in log.exchanges()] == ["b?", "a?", ""]  # oldest first
+    log.reset()
+    assert log.exchanges(since_reset=True) == [] and len(log.exchanges()) == 3
+    (log.path).write_text(log.path.read_text() + "not json\n")
+    assert len(log.records()) == 4
+    assert conv.stamp("2026-11-11T06:12:00.123Z") == "2026-11-11T06:12:00Z"
+    assert conv.stamp("2026-11-11T16:12:00+10:00") == "2026-11-11T06:12:00Z"
+
+
+def test_saved_note_reads_back_as_turns():
+    turns = [
+        conv.Turn("me", "(About the whole document.)", "Feedback"),
+        conv.Turn("claude", "## What works\n\nThe opening.\n\n```\n## kept\n```", looked_at=["one.md", "Grep x"]),
+        conv.Turn("me", "Who is Mara?"),
+        conv.Turn("claude", "The hero."),
+    ]
+    note = "---\ntitle: Chat\ntype: research\n---\n" + conv.to_markdown(turns, "Chat", "Saved today.")
+    assert conv.is_saved_conversation(note) and not conv.is_saved_conversation("# A chapter\n\nMe and Claude.")
+    back = conv.from_markdown(note)
+    assert [(e.label, e.request) for e in back] == [("Feedback", "(About the whole document.)"), ("", "Who is Mara?")]
+    assert back[0].reply == "## What works\n\nThe opening.\n\n```\n## kept\n```"
+    assert back[0].looked_at == ["one.md", "Grep x"] and back[1].reply == "The hero."
+
+
+def test_seeded_request_reads_without_the_earlier_conversation(tmp_path):
+    seeded = f"{conv.SEED_START}This is a new conversation...\n{conv.SEED_END}\n\n{HEADER}\n\n{conv.FEEDBACK}\n\n{conv.WHOLE_DOCUMENT}"
+    path = write_session(tmp_path, "s3", [user(seeded), assistant(text("Fine."))])
+    turns = conv.turns(path)
+    assert (turns[0].label, turns[0].about, turns[0].text) == ("Feedback", "one.md", "(About the whole document.)")
+    assert turns[0].time == ""  # these records carry no timestamp
+
+
+async def test_new_conversation_gets_the_turns_claude_code_lost(tmp_path, monkeypatch):
+    home = tmp_path / "claude-home"
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(home))
+    calls = tmp_path / "calls.jsonl"
+    monkeypatch.setenv("FAKE_CLAUDE_LOG", str(calls))
+    book = tmp_path / "book"
+    book.mkdir()
+    doc = book / "one.md"
+    doc.write_text("Mara walked her dog.\n")
+    conv.Log(book).append(conv.Exchange("Ask", "Who is Mara?", "The hero.", time="2026-10-01T00:00:00Z"),
+                          session="gone", provider="claude-code")
+    cc.Sessions(tmp_path / "state" / "ai" / "claude-code-sessions.json").set(book, "gone")
+    settings = {"provider": "claude-code", "command": f'"{sys.executable}" "{FAKE}"', "consented": ["claude-code"]}
+    app = app_with(tmp_path, "ai", paths=[doc], plugins={"ai": settings})
+    async with app.run_test(size=(140, 40)) as pilot:
+        app.run_command("ai.feedback")
+        assert await wait_for(pilot, lambda: app.panel.visible and app.panel.content.done)
+        panel = app.panel.content
+        assert [e.reply for e in panel.entries][0] == "The hero." and panel.index == 1
+        # Asked again: the conversation is resumed, and nothing is put in front.
+        app.run_command("ai.feedback")
+        assert await wait_for(pilot, lambda: app.panel.content is not panel and app.panel.content.done)
+    sent = [json.loads(line) for line in calls.read_text().splitlines()]
+    assert "--resume" in sent[0]["args"] and not sent[0]["prompt"].startswith(conv.SEED_START)
+    assert sent[1]["prompt"].startswith(conv.SEED_START) and "--session-id" in sent[1]["args"]
+    earlier = book / ".inkmill" / "earlier-conversation.md"
+    assert str(earlier) in sent[1]["prompt"] and "Who is Mara?" in earlier.read_text()
+    assert "--resume" in sent[2]["args"] and not sent[2]["prompt"].startswith(conv.SEED_START)
+    assert len(conv.Log(book).exchanges()) == 3
+
+
+async def test_new_conversation_command_starts_without_the_earlier_turns(tmp_path, monkeypatch):
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "claude-home"))
+    calls = tmp_path / "calls.jsonl"
+    monkeypatch.setenv("FAKE_CLAUDE_LOG", str(calls))
+    doc = tmp_path / "one.md"
+    doc.write_text("Text.\n")
+    conv.Log(tmp_path).append(conv.Exchange("Ask", "Q?", "A."), session="s0")
+    cc.Sessions(tmp_path / "state" / "ai" / "claude-code-sessions.json").set(tmp_path, "s0")
+    settings = {"provider": "claude-code", "command": f'"{sys.executable}" "{FAKE}"', "consented": ["claude-code"]}
+    app = app_with(tmp_path, "ai", paths=[doc], plugins={"ai": settings})
+    async with app.run_test(size=(140, 40)) as pilot:
+        app.run_command("ai.new_conversation")
+        assert await wait_for(pilot, lambda: type(app.screen).__name__ == "ConfirmDialog")
+        await pilot.press("enter")
+        assert await wait_for(pilot, lambda: type(app.screen).__name__ != "ConfirmDialog")
+        app.run_command("ai.feedback")
+        assert await wait_for(pilot, lambda: app.panel.visible and app.panel.content.done)
+        assert len(app.panel.content.entries) == 2  # the history still shows the earlier turn
+    sent = json.loads(calls.read_text().splitlines()[0])
+    assert "--session-id" in sent["args"] and not sent["prompt"].startswith(conv.SEED_START)
+
+
+async def test_show_saved_conversation_pages_a_note(tmp_path):
+    note = tmp_path / "chat.md"
+    turns = [conv.Turn("me", "Who is Mara?", "Ask"), conv.Turn("claude", "The hero."),
+             conv.Turn("me", "And Biscuit?", "Ask"), conv.Turn("claude", "The dog.")]
+    note.write_text("---\ntitle: Chat\ntype: research\n---\n" + conv.to_markdown(turns, "Chat"))
+    app = app_with(tmp_path, "ai", paths=[note])
+    async with app.run_test(size=(140, 40)) as pilot:
+        app.run_command("ai.show_saved")
+        assert await wait_for(pilot, lambda: type(app.screen).__name__ == "TurnList")
+        assert app.screen.query_one("OptionList").option_count == 2
+        await pilot.press("enter")
+        assert await wait_for(pilot, lambda: app.panel.visible)
+        assert app.panel.content.text == "The dog."
+        await pilot.press("left")
+        assert app.panel.content.text == "The hero."
+
+
+def test_import_conversation_from_claude_code_and_notes(tmp_path, monkeypatch, capsys):
+    from inkmill.__main__ import main
+
+    home = tmp_path / "claude-home"
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(home))
+    monkeypatch.setattr("inkmill.plugins.plugins_dir", lambda: PLUGINS)
+    monkeypatch.setattr(ai, "state_dir", lambda: tmp_path / "state")
+    book = tmp_path / "book"
+    book.mkdir()
+    records = [user(f"{HEADER}\n\nWho is Mara?\n\n{conv.WHOLE_DOCUMENT}"), assistant(text("The hero."))]
+    for r in records:
+        r["cwd"] = str(book)
+        r["timestamp"] = "2026-11-01T00:00:00.000Z"
+    write_session(home, "old-1", records)
+    cc.Sessions(tmp_path / "state" / "ai" / "claude-code-sessions.json").set(book, "old-1")
+
+    assert ai.import_conversation(book) == [
+        "Claude Code conversation old-1: 1 of 1 turn(s) added", f"Kept in {conv.Log(book).path}"]
+    assert ai.import_conversation(book, "all")[0] == "Claude Code conversation old-1: 0 of 1 turn(s) added"
+
+    note = tmp_path / "chat.md"
+    note.write_text("---\ntitle: Chat\nsaved: 2026-10-05\n---\n" + conv.to_markdown(
+        [conv.Turn("me", "Who is Mara?\n\n(About the whole document.)", "Ask"), conv.Turn("claude", "The hero."),
+         conv.Turn("me", "Older?"), conv.Turn("claude", "Yes.")], "Chat"))
+    assert main(["--import-conversation", str(book), "--from", str(note)]) == 0
+    assert "chat.md: 1 of 2 turn(s) added" in capsys.readouterr().out
+    kept = conv.Log(book).exchanges()
+    assert [e.request for e in kept] == ["Older?", "Who is Mara?\n\n(About the whole document.)"]
+    assert kept[0].time == "2026-10-05T00:00:00Z"
+    assert main(["--import-conversation", str(book), "--from", "nope"]) == 1
+    assert main(["--import-conversation", str(tmp_path / "missing")]) == 1

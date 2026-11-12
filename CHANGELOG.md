@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.5.4
+
+- The AI Assistant (1.3) keeps every request and reply in the project's
+  folder, in `.inkmill/ai-conversation.jsonl`, whichever provider answered.
+  Conversation History and the reply panel read it, so the turns outlive
+  Claude Code's clean-up of old conversations, New Conversation, and
+  quitting Inkmill (the API, Ollama and OpenAI-compatible providers kept
+  them only until quit before). The record moves with the folder.
+- With Claude Code, turns it has that the record lacks (earlier requests,
+  or ones typed in Claude Code itself) are copied in. When Claude Code no
+  longer has a project's conversation, the next request starts a new one
+  and points Claude at the earlier turns.
+- AI > Show Saved Conversation pages through a conversation note saved
+  with Save Conversation as Research Note.
+- `inkmill --import-conversation FOLDER [--from SOURCE]` copies earlier
+  Claude Code conversations, or a saved conversation note, into a
+  project's record.
+
 ## 0.5.3
 
 - AI > Save Conversation as Research Note (AI Assistant 1.2, Claude Code

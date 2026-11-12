@@ -22,7 +22,7 @@ import subprocess
 import sys
 import threading
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
@@ -41,6 +41,7 @@ class SessionMissing(ClaudeCodeError):
 class Reply:
     text: str
     session_id: str
+    tools: list[dict] = field(default_factory=list)  # the tool calls Claude made, in order
 
 
 def split_command(command: str) -> list[str]:
@@ -165,6 +166,7 @@ def run(
     final: dict | None = None
     stray: list[str] = []
     pieces: list[str] = []
+    tools: list[dict] = []
     used_tool = False
     assert proc.stdout is not None
     for raw in proc.stdout:
@@ -193,13 +195,14 @@ def run(
             for block in (data.get("message") or {}).get("content") or []:
                 if block.get("type") == "tool_use":
                     used_tool = True
+                    tools.append(block)
                     if on_tool:
                         on_tool(describe_tool(block))
         elif kind == "result":
             final = data
     code = proc.wait()
     if cancel is not None and cancel.is_set():
-        return Reply("".join(pieces), (final or {}).get("session_id", ""))
+        return Reply("".join(pieces), (final or {}).get("session_id", ""), tools)
     if final is None:
         message = " ".join(stray + errors).strip() or f"claude stopped with exit code {code}"
         raise ClaudeCodeError(friendly(message))
@@ -209,7 +212,7 @@ def run(
             raise SessionMissing(message)
         raise ClaudeCodeError(friendly(message))
     text = final.get("result")
-    return Reply(str(text) if text is not None else "".join(pieces), str(final.get("session_id", "")))
+    return Reply(str(text) if text is not None else "".join(pieces), str(final.get("session_id", "")), tools)
 
 
 def friendly(message: str) -> str:

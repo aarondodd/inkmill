@@ -26,6 +26,17 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--no-plugins", action="store_true", help="start without loading plugins")
     parser.add_argument("--check-update", action="store_true", help="say whether a newer Inkmill is out, then exit")
     parser.add_argument("--update", action="store_true", help="install a newer Inkmill if there is one, then exit")
+    parser.add_argument(
+        "--import-conversation", metavar="FOLDER", type=Path,
+        help="copy a project's earlier AI conversation into the record Inkmill keeps in FOLDER, then exit "
+             "(needs the AI Assistant plugin)",
+    )
+    parser.add_argument(
+        "--from", dest="import_from", metavar="SOURCE", default="",
+        help="for --import-conversation: 'all' (every Claude Code conversation started in FOLDER), a Claude "
+             "Code session id or .jsonl file, or a conversation note saved by the AI Assistant (.md); "
+             "default: the Claude Code conversation Inkmill uses for FOLDER",
+    )
     return parser
 
 
@@ -59,6 +70,9 @@ def main(argv: list[str] | None = None) -> int:
                     print(f"    missing {kind} program {req.name}" + (f"; install: {hint}" if hint else ""))
         return 0
 
+    if args.import_conversation:
+        return import_conversation(args.import_conversation, args.import_from)
+
     if args.check_update or args.update:
         return update_from_command_line(install=args.update)
 
@@ -89,6 +103,34 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     return run_app(args.files, load_plugins=not args.no_plugins)
+
+
+def import_conversation(folder: Path, source: str) -> int:
+    """Hand ``--import-conversation`` to the AI Assistant plugin, wherever it is installed."""
+    from .plugins import discover
+
+    item = next((f for f in discover() if f.name == "ai"), None)
+    if item is None or item.error:
+        print("inkmill: --import-conversation needs the AI Assistant plugin; install it with Plugins > Manage Plugins",
+              file=sys.stderr)
+        return 2
+    try:
+        module = item.loader()
+    except Exception as exc:  # a broken plugin should not show a traceback here
+        print(f"inkmill: the AI Assistant plugin did not load: {exc}", file=sys.stderr)
+        return 2
+    run = getattr(module, "import_conversation", None)
+    if run is None:
+        print("inkmill: this AI Assistant plugin is too old for --import-conversation; update it in Plugins > Manage Plugins",
+              file=sys.stderr)
+        return 2
+    try:
+        for line in run(folder, source):
+            print(line)
+    except (OSError, ValueError) as exc:
+        print(f"inkmill: {exc}", file=sys.stderr)
+        return 1
+    return 0
 
 
 def update_from_command_line(*, install: bool) -> int:

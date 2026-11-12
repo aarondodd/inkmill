@@ -14,6 +14,10 @@ With Claude Code, each project (a binder, or the folder of a document that is
 not in one) keeps one conversation that later requests continue, so Claude
 remembers earlier questions; and Claude may read the project's files itself
 instead of being sent them.
+
+Every request and reply is also kept in the project folder
+(.inkmill/ai-conversation.jsonl), whichever provider answered, so the
+history outlives Claude Code's clean-up of old conversations.
 """
 
 from __future__ import annotations
@@ -343,6 +347,10 @@ def register(api):
     def sessions() -> claudecode.Sessions:
         return claudecode.Sessions(state_dir() / "ai" / "claude-code-sessions.json")
 
+    def keep() -> bool:
+        """Whether turns are kept in the project folder's log."""
+        return bool(table().get("keep_history", True))
+
     # -- the project, its files and its story bible ------------------------------
 
     def project() -> Project:
@@ -513,13 +521,15 @@ def register(api):
         def on_text(piece: str) -> None:
             app.call_from_thread(panel.add, piece)
 
+        tools: list[dict] = []
         try:
             if p.kind == "cli":
-                reply = await run_cli(
+                answer = await run_cli(
                     state["prompt"], on_text, cancel=cancel,
                     on_tool=lambda line: app.call_from_thread(panel.note, line),
                     on_reset=lambda: app.call_from_thread(panel.reset),
                 )
+                reply, tools = answer.text, answer.tools
             else:
                 reply = await api.run_in_thread(
                     client.stream, p, client.load_key(config_dir(), p), SYSTEM, state["conversation"], on_text,
@@ -532,34 +542,98 @@ def register(api):
             return
         state["conversation"].append({"role": "assistant", "content": reply})
         live.reply = reply
-        if p.kind != "cli":
-            memory(project().folder).append(live)
+        live.looked_at = [conversation.looked_at(t) for t in tools]
+        live.time = conversation.stamp()
+        await record(live, p)
         panel.finish(text=reply)
+
+    async def record(exchange: conversation.Exchange, p: client.Provider) -> None:
+        """Keep a finished turn: in the project's log, or for the providers
+        with no other record, in memory until Inkmill quits."""
+        proj = project()
+        if not keep():
+            if p.kind != "cli":
+                memory(proj.folder).append(exchange)
+            return
+        session = (sessions().get(proj.folder) or "") if p.kind == "cli" else ""
+        try:
+            await api.run_in_thread(conversation.Log(proj.folder).append, exchange, session=session, provider=p.id)
+        except OSError as exc:
+            memory(proj.folder).append(exchange)
+            app.notify(f"Could not keep this turn in {conversation.LOG_FOLDER}/{conversation.LOG_NAME}: {exc}",
+                       severity="warning")
 
     # -- the conversation so far -------------------------------------------------
 
     def memory(folder: Path) -> list:
-        """This run's exchanges for a project, for providers that keep no
-        conversation on disk. Lost when Inkmill quits."""
+        """This run's exchanges for a project when the log is turned off (or
+        cannot be written). Lost when Inkmill quits."""
         return state.setdefault("memory", {}).setdefault(folder.resolve().as_posix(), [])
 
     async def history() -> list:
-        """The project's earlier exchanges: Claude Code's own record of the
-        conversation, or for other providers the ones made since Inkmill started."""
+        """The project's earlier exchanges, oldest first.
+
+        With the log on (the default), turns Claude Code has that the log
+        lacks are copied into it first, so turns asked before the log existed,
+        or typed in Claude Code itself, are kept too.
+        """
         proj = project()
-        if not is_cli():
-            return list(memory(proj.folder))
-        session = sessions().get(proj.folder)
-        source = conversation.find(session) if session else None
-        if source is None:
-            return []
+        log = conversation.Log(proj.folder) if keep() else None
+        extra = list(memory(proj.folder))
+        if is_cli():
+            session = sessions().get(proj.folder)
+            source = conversation.find(session) if session else None
+            found: list = []
+            if source is not None:
+                try:
+                    found = conversation.exchanges(await api.run_in_thread(conversation.load, source))
+                except OSError:
+                    found = []
+            if log is None:
+                return found
+            if found:
+                try:
+                    await api.run_in_thread(log.sync, session, found)
+                except OSError:
+                    return found
+        elif log is None:
+            return extra
         try:
-            return conversation.exchanges(await api.run_in_thread(conversation.load, source))
+            return await api.run_in_thread(log.exchanges) + extra
         except OSError:
-            return []
+            return extra
+
+    def seed(proj: Project, files: bool) -> str:
+        """For the first request of a new Claude Code conversation: the turns
+        the log holds since the writer last started afresh, which Claude Code
+        no longer has (it cleaned them up, or the folder came from elsewhere)."""
+        if not keep():
+            return ""
+        try:
+            earlier = conversation.Log(proj.folder).exchanges(since_reset=True)
+        except OSError:
+            return ""
+        if not earlier:
+            return ""
+        turns = conversation.exchanges_to_turns(earlier)
+        if files:
+            path = proj.folder / conversation.LOG_FOLDER / conversation.EARLIER_NAME
+            try:
+                path.write_text(conversation.to_markdown(turns, f"Earlier conversation about {proj.label}"), encoding="utf-8")
+            except OSError:
+                return ""
+            body = (f"This is a new conversation. The earlier one ({len(earlier)} turns) is saved in {path}; "
+                    "read it when a request depends on what was said before.")
+        else:
+            text = conversation.to_markdown(turns, "Earlier conversation")
+            limit = int(table().get("max_context_chars", 600_000)) // 4
+            if len(text) > limit:
+                text = "(The oldest turns are left out.)\n\n" + text[-limit:]
+            body = "This is a new conversation. The earlier one was:\n\n" + text
+        return f"{conversation.SEED_START}{body}\n{conversation.SEED_END}\n\n"
 
     async def run_cli(prompt: str, on_text, *, cancel: threading.Event | None = None, on_tool=None, on_reset=None,
-                      persist: bool = True, files: bool | None = None) -> str:
+                      persist: bool = True, files: bool | None = None) -> claudecode.Reply:
         """One Claude Code request, continuing the project's conversation unless ``persist`` is False."""
         p = provider()
         exe = claudecode.find(p.base_url)
@@ -578,7 +652,8 @@ def register(api):
                 exe, system=SYSTEM_FILES if files else SYSTEM, model=p.model, effort=str(table().get("effort") or ""),
                 session=session_id, resume=resume, files=files, add_dirs=extra_dirs(proj) if files else (),
             )
-            return claudecode.run(args, proj.folder, prompt, on_text, on_tool=on_tool, on_reset=on_reset, cancel=cancel)
+            text = prompt if resume or not persist else seed(proj, files) + prompt
+            return claudecode.run(args, proj.folder, text, on_text, on_tool=on_tool, on_reset=on_reset, cancel=cancel)
 
         try:
             try:
@@ -586,13 +661,15 @@ def register(api):
             except claudecode.SessionMissing:
                 store.forget(proj.folder)
                 session = claudecode.new_session_id()
-                app.notify("Claude Code no longer has the earlier conversation for this project; started a new one.")
+                kept = keep() and conversation.Log(proj.folder).exchanges(since_reset=True)
+                app.notify("Claude Code no longer has the earlier conversation for this project; started a new one"
+                           + (" and gave it the turns Inkmill kept." if kept else "."))
                 reply = await api.run_in_thread(go, session, False)
         except claudecode.ClaudeCodeError as exc:
             raise client.AIError(str(exc)) from exc
         if persist and reply.session_id:
             store.set(proj.folder, reply.session_id)
-        return reply.text
+        return reply
 
     # -- using the reply ---------------------------------------------------------
 
@@ -752,7 +829,7 @@ def register(api):
         try:
             if p.kind == "cli":
                 # A one-off request, kept out of the project's conversation.
-                reply = await run_cli(prompt, lambda _t: None, persist=False, files=False)
+                reply = (await run_cli(prompt, lambda _t: None, persist=False, files=False)).text
             else:
                 reply = await api.run_in_thread(client.stream, p, client.load_key(config_dir(), p), SYSTEM,
                                                 [{"role": "user", "content": prompt}], lambda _t: None, max_tokens=300)
@@ -837,10 +914,16 @@ def register(api):
         answer = await app.push_screen_wait(ConfirmDialog(
             "New Conversation",
             f"Start a fresh Claude Code conversation for {proj.label}? Claude forgets what was said so far; "
-            "the story bible stays. (The old conversation stays in Claude Code, where claude --resume lists it.)",
+            "the story bible stays, and Conversation History still lists the earlier turns.",
         ))
         if answer == "yes":
+            await history()  # keep Claude Code's turns in the log before letting go of them
             sessions().forget(proj.folder)
+            if keep():
+                try:
+                    conversation.Log(proj.folder).reset()
+                except OSError:
+                    pass
             app.status.flash("The next AI request starts a new conversation.")
 
     @api.command("ai.handoff", "C&ontinue in Claude Code...", menu="ai",
@@ -869,15 +952,31 @@ def register(api):
     async def show_history(app):
         past = await history()
         if not past:
-            app.status.flash("There is no conversation for this project yet." if is_cli()
-                             else "No AI requests yet since Inkmill started (only Claude Code keeps a history).")
+            app.status.flash("There is no conversation for this project yet.")
             return
-        index = await app.push_screen_wait(TurnList(f"Conversation: {project().label}", past))
+        await browse(f"Conversation: {project().label}", past)
+
+    async def browse(title: str, past: list) -> None:
+        index = await app.push_screen_wait(TurnList(title, past))
         if index is None:
             return
         panel = ReplyPanel(plugin, history=past, index=index)
         state["panel"] = panel
         await api.show_panel(panel, panel.heading(), panel.hint())
+
+    def on_saved_note(a) -> bool:
+        doc = a.active_document
+        return doc is not None and conversation.is_saved_conversation(doc.text)
+
+    @api.command("ai.show_saved", "Sho&w Saved Conversation...", menu="ai", enabled=on_saved_note,
+                 description="Page through the turns of the saved conversation note you are reading")
+    async def show_saved(app):
+        doc = app.active_document
+        past = conversation.from_markdown(doc.text)
+        if not past:
+            app.status.flash("This note has no conversation turns in it.")
+            return
+        await browse(f"Saved conversation: {doc.title}", past)
 
     @api.command("ai.save_conversation", "Sa&ve Conversation as Research Note...", menu="ai",
                  enabled=lambda a: is_cli() and sessions().get(project().folder) is not None,
@@ -1010,3 +1109,54 @@ def register(api):
             app.notify(f"Saved, but '{command.strip() or 'claude'}' was not found. See the AI Assistant README.", severity="warning")
         else:
             app.status.flash(f"AI: Claude Code ({found[0]}), {model.strip() or 'default model'}")
+
+
+def import_conversation(folder: Path, source: str = "") -> list[str]:
+    """``inkmill --import-conversation FOLDER [--from SOURCE]``: copy earlier
+    turns into the project folder's log, and say what was copied.
+
+    SOURCE is empty (the Claude Code conversation Inkmill uses for FOLDER, or
+    if none, every Claude Code conversation started in FOLDER), ``all``, a
+    Claude Code session id, a Claude Code ``.jsonl`` file, or a conversation
+    note saved with AI > Save Conversation as Research Note. Copying twice
+    adds nothing the second time.
+    """
+    folder = Path(folder).expanduser().resolve()
+    if not folder.is_dir():
+        raise ValueError(f"{folder}: no such folder")
+    log = conversation.Log(folder)
+    lines: list[str] = []
+    candidate = Path(source).expanduser() if source else None
+    if candidate is not None and candidate.is_file() and candidate.suffix.lower() == ".md":
+        text = candidate.read_text(encoding="utf-8", errors="replace")
+        found = conversation.from_markdown(text)
+        if not found:
+            raise ValueError(f"{candidate}: no conversation turns in it (was it saved by the AI Assistant?)")
+        saved = frontmatter.read(text).get("saved") if text.startswith("---") else None
+        when = conversation.stamp(str(saved)) if saved else conversation.stamp(
+            datetime.datetime.fromtimestamp(candidate.stat().st_mtime, datetime.timezone.utc))
+        for e in found:
+            e.time = e.time or when
+        added = log.add_missing(found, source=f"note {candidate.name}")
+        lines.append(f"{candidate.name}: {added} of {len(found)} turn(s) added")
+        return lines + [f"Kept in {log.path}"]
+    if candidate is not None and candidate.is_file() and candidate.suffix.lower() == ".jsonl":
+        files = [candidate]
+    elif source == "all":
+        files = conversation.transcripts_for(folder)
+    elif source:
+        path = conversation.find(source)
+        if path is None:
+            raise ValueError(f"no Claude Code conversation {source} under {conversation.claude_home() / 'projects'}")
+        files = [path]
+    else:
+        session = claudecode.Sessions(state_dir() / "ai" / "claude-code-sessions.json").get(folder)
+        path = conversation.find(session) if session else None
+        files = [path] if path is not None else conversation.transcripts_for(folder)
+    if not files:
+        raise ValueError(f"no Claude Code conversation found for {folder}")
+    for path in files:
+        found = conversation.exchanges(conversation.turns(path))
+        added = log.sync(path.stem, found)
+        lines.append(f"Claude Code conversation {path.stem}: {added} of {len(found)} turn(s) added")
+    return lines + [f"Kept in {log.path}"]
