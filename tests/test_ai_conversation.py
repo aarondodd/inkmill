@@ -10,6 +10,7 @@ from pluginhelp import PLUGINS, app_with, load_module, wait_for
 
 conv = load_module("ai", "conversation")
 cc = load_module("ai", "claudecode")
+bb = load_module("ai", "bible")
 ai = _load_package(PLUGINS / "ai")
 FAKE = Path(__file__).with_name("fake_claude.py")
 HEADER = "Project folder: /book\nBinder (chapter order and research list): book.md\nThe writer is working on: chapters/one.md"
@@ -372,3 +373,97 @@ def test_import_conversation_from_claude_code_and_notes(tmp_path, monkeypatch, c
     assert kept[0].time == "2026-10-05T00:00:00Z"
     assert main(["--import-conversation", str(book), "--from", "nope"]) == 1
     assert main(["--import-conversation", str(tmp_path / "missing")]) == 1
+
+
+BIBLE = """# Story Bible
+
+Intro.
+
+## Characters
+
+- Mara, the hero.
+
+## Places
+
+## Style
+
+Plain.
+"""
+
+
+def test_bible_entries_are_read_and_filed_under_their_headings():
+    assert bb.sections(BIBLE + "```\n## not one\n```\n") == ["Characters", "Places", "Style"]
+    reply = 'Here you go:\n```json\n[{"section": "characters", "entry": "Biscuit is  her dog.", "note": ""},' \
+            ' {"section": "Places", "entry": "The harbor.", "note": "the bible says a lake"},' \
+            ' {"section": "Plot", "entry": "Mara leaves in chapter 3."}, {"section": "X", "entry": ""}]\n```'
+    found = bb.parse(reply)
+    assert [(p.section, p.entry, p.note) for p in found] == [
+        ("characters", "Biscuit is her dog.", ""), ("Places", "The harbor.", "the bible says a lake"),
+        ("Plot", "Mara leaves in chapter 3.", "")]
+    assert bb.parse("No JSON here.") is None and bb.parse("[]") == []
+    merged = bb.merge(BIBLE, found)
+    assert merged == """# Story Bible
+
+Intro.
+
+## Characters
+
+- Mara, the hero.
+- Biscuit is her dog.
+
+## Places
+
+- The harbor.
+
+## Style
+
+Plain.
+
+## Plot
+
+- Mara leaves in chapter 3.
+"""
+    assert "Characters, Places, Style" in bb.request("Talk.", "", ["Characters", "Places", "Style"])
+
+
+async def test_update_story_bible_from_the_conversation(tmp_path, monkeypatch):
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "claude-home"))
+    calls = tmp_path / "calls.jsonl"
+    monkeypatch.setenv("FAKE_CLAUDE_LOG", str(calls))
+    monkeypatch.setenv("FAKE_CLAUDE_REPLY", json.dumps([
+        {"section": "Characters", "entry": "Biscuit is Mara's dog.", "note": ""},
+        {"section": "Places", "entry": "A lake town.", "note": ""}]))
+    doc = tmp_path / "one.md"
+    doc.write_text("Mara walked her dog.\n")
+    (tmp_path / "Story Bible.md").write_text(BIBLE)
+    conv.Log(tmp_path).append(conv.Exchange("Ask", "Name the dog?", "Biscuit, settled."))
+    settings = {"provider": "claude-code", "command": f'"{sys.executable}" "{FAKE}"', "consented": ["claude-code"]}
+    app = app_with(tmp_path, "ai", paths=[doc], plugins={"ai": settings})
+    async with app.run_test(size=(140, 40)) as pilot:
+        app.run_command("ai.bible_update")
+        assert await wait_for(pilot, lambda: type(app.screen).__name__ == "BibleReview", timeout=10)
+        review = app.screen
+        assert review.query_one("OptionList").option_count == 2 and review.chosen() == [0, 1]
+        await pilot.press("down", "space")  # uncheck the lake town
+        assert review.chosen() == [0]
+        await pilot.press("enter", "enter")  # Enter toggles too
+        assert review.chosen() == [0]
+        await pilot.press("a")
+        assert await wait_for(pilot, lambda: type(app.screen).__name__ != "BibleReview")
+    text = (tmp_path / "Story Bible.md").read_text()
+    assert "- Mara, the hero.\n- Biscuit is Mara's dog.\n" in text and "lake" not in text
+    sent = json.loads(calls.read_text().splitlines()[0])
+    assert "--no-session-persistence" in sent["args"]  # kept out of the conversation
+    saved = tmp_path / ".inkmill" / "conversation-for-bible.md"
+    assert str(saved) in sent["prompt"] and "Name the dog?" in saved.read_text()
+    assert len(conv.Log(tmp_path).exchanges()) == 1  # not added to the history either
+
+
+async def test_update_story_bible_with_nothing_to_go_on(tmp_path):
+    doc = tmp_path / "one.md"
+    doc.write_text("Text.\n")
+    app = app_with(tmp_path, "ai", paths=[doc])
+    async with app.run_test(size=(140, 40)) as pilot:
+        app.run_command("ai.bible_update")
+        await pilot.pause(0.3)
+        assert type(app.screen).__name__ not in ("BibleReview", "ConfirmDialog")

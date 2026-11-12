@@ -32,15 +32,17 @@ from pathlib import Path
 from rich.markdown import Markdown
 from rich.text import Text
 from textual import events
+from textual.binding import Binding
 from textual.containers import Vertical, VerticalScroll
-from textual.widgets import Input, Label, OptionList, Static
+from textual.containers import Horizontal
+from textual.widgets import Button, Input, Label, OptionList, Static
 from textual.widgets.option_list import Option
 
 from inkmill import frontmatter
 from inkmill.config import config_dir, state_dir
 from inkmill.screens.dialogs import ChoiceDialog, ConfirmDialog, Dialog, InputDialog, TextDialog
 
-from . import claudecode, client, conversation
+from . import bible, claudecode, client, conversation
 from .conversation import CONTINUITY, FEEDBACK, PASSAGE, REWRITE, SUMMARY, TEXT, WHOLE_DOCUMENT
 
 SYSTEM = (
@@ -312,6 +314,73 @@ class TurnList(Dialog):
 
     def on_option_list_option_selected(self, event) -> None:
         self.dismiss(int(event.option.id))
+
+
+class BibleReview(Dialog):
+    """Suggested story bible entries, each checked; the writer unchecks what
+    is wrong and adds the rest. Dismisses with the indexes to add, or None."""
+
+    DEFAULT_CSS = Dialog.DEFAULT_CSS + """
+    BibleReview .im-dialog { width: 100; max-height: 90%; }
+    BibleReview OptionList { height: auto; max-height: 24; background: $im-dialog-bg; border: none; }
+    BibleReview #hint { color: $im-dialog-fg 70%; }
+    """
+
+    BINDINGS = [*Dialog.BINDINGS, Binding("space", "toggle_current", show=False),
+                Binding("a", "add", show=False)]
+
+    def __init__(self, title: str, proposals: list) -> None:
+        super().__init__()
+        self.title_text = title
+        self.proposals = proposals
+        self.checked = set(range(len(proposals)))
+
+    def row(self, i: int) -> Text:
+        p = self.proposals[i]
+        shown = Text("[x] " if i in self.checked else "[ ] ")
+        shown.append(f"{p.section}: ", style="bold")
+        shown.append(p.entry)
+        if p.note:
+            shown.append(f" (changes the bible: {p.note})", style="italic")
+        return shown
+
+    def compose(self):
+        with Vertical(classes="im-dialog"):
+            yield Label(self.title_text, classes="im-title")
+            yield OptionList(*[Option(self.row(i), id=str(i)) for i in range(len(self.proposals))])
+            yield Label("Space or Enter checks and unchecks. A adds the checked entries, Esc cancels.", id="hint")
+            with Horizontal(classes="im-buttons"):
+                yield Button("Add checked", id="add", compact=True)
+                yield Button("Cancel", id="cancel", compact=True)
+
+    def on_mount(self) -> None:
+        options = self.query_one(OptionList)
+        options.focus()
+        if options.option_count:
+            options.highlighted = 0
+
+    def toggle(self, i: int) -> None:
+        self.checked ^= {i}
+        self.query_one(OptionList).replace_option_prompt_at_index(i, self.row(i))
+
+    def chosen(self) -> list[int]:
+        return sorted(self.checked)
+
+    def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
+        event.stop()
+        self.toggle(int(event.option.id))
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        self.dismiss(self.chosen() if event.button.id == "add" else None)
+
+    # Bindings, not on_key, so they run after a queued move of the highlight.
+    def action_toggle_current(self) -> None:
+        options = self.query_one(OptionList)
+        if options.has_focus and options.highlighted is not None:
+            self.toggle(options.highlighted)
+
+    def action_add(self) -> None:
+        self.dismiss(self.chosen())
 
 
 def _strip_number(text: str) -> str:
@@ -903,6 +972,83 @@ def register(api):
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(BIBLE_TEMPLATE, encoding="utf-8")
         await app.open_path(path)
+
+    @api.command("ai.bible_update", "&Update Story Bible from Conversation...", menu="ai", enabled=has_doc,
+                 description="Suggest bible entries for what the conversation settled; you pick which to add")
+    async def update_bible(app):
+        p = provider()
+        proj = project()
+        past = await history()
+        if not past:
+            app.status.flash("There is no conversation for this project yet.")
+            return
+        if not await ready_to_send(p):
+            return
+        path = bible_path(proj)
+        current = bible_text(proj) or BIBLE_TEMPLATE
+        headings = bible.sections(current)
+        talk = conversation.to_markdown(conversation.exchanges_to_turns(past), f"Conversation about {proj.label}")
+        reading = p.kind == "cli" and files_on()
+        if reading:
+            # Claude Code reads both files itself, so a long conversation is not squeezed into the request.
+            saved = proj.folder / conversation.LOG_FOLDER / "conversation-for-bible.md"
+            try:
+                saved.parent.mkdir(parents=True, exist_ok=True)
+                saved.write_text(talk, encoding="utf-8")
+            except OSError as exc:
+                app.notify(f"Could not write {saved}: {exc}", severity="error")
+                return
+            where_bible = f" ({where(path, proj)})" if path.exists() or app.docs.find_path(path) else " (none yet)"
+            prompt = bible.request(f"The file {saved} holds the writer's conversation with you about their story; read all of it.",
+                                   where_bible, headings)
+        else:
+            limit = int(table().get("max_context_chars", 600_000)) // 2
+            if len(talk) > limit:
+                talk = "(The oldest turns are left out.)\n\n" + talk[-limit:]
+            prompt = bible.request(f"Here is the writer's conversation with you about their story:\n\n{talk}\n\n",
+                                   f", below,", headings) + f"\n\nThe story bible:\n\n{current}"
+        app.status.flash(f"Reading {len(past)} turns for the story bible; this can take a minute...", seconds=180)
+        try:
+            if p.kind == "cli":
+                # A one-off request, kept out of the project's conversation.
+                reply = (await run_cli(prompt, lambda _t: None, persist=False, files=reading)).text
+            else:
+                reply = await api.run_in_thread(
+                    client.stream, p, client.load_key(config_dir(), p), SYSTEM, [{"role": "user", "content": prompt}],
+                    lambda _t: None, max_tokens=int(table().get("max_tokens_long", 4096)))
+        except client.AIError as exc:
+            app.status.clear_flash()
+            app.notify(f"Story bible update failed: {exc}", severity="error")
+            return
+        app.status.clear_flash()
+        found = bible.parse(reply)
+        if found is None:
+            app.notify("The reply was not a list of entries; it is shown in the panel, where B adds it as it is.",
+                       severity="warning", timeout=10)
+            panel = ReplyPanel(plugin, history=[conversation.Exchange("Story bible", "", reply)])
+            state["panel"] = panel
+            await api.show_panel(panel, panel.heading(), panel.hint())
+            return
+        if not found:
+            app.status.flash("Nothing new for the story bible.")
+            return
+        picked = await app.push_screen_wait(BibleReview(f"Add to {path.name}? ({len(found)} suggested)", found))
+        if not picked:
+            return
+        accepted = [found[i] for i in picked]
+        updated = bible.merge(current, accepted)
+        doc = app.docs.find_path(path)
+        if doc is not None:
+            app.replace_document_text(doc, updated)
+            app.status.flash(f"Added {len(accepted)} entries to {path.name}. Save it to keep them; Ctrl+Z undoes.")
+            return
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(updated, encoding="utf-8")
+        except OSError as exc:
+            app.notify(f"Could not write {path}: {exc}", severity="error")
+            return
+        app.status.flash(f"Added {len(accepted)} entries to {path.name}; AI > Story Bible opens it.")
 
     @api.command("ai.new_conversation", "&New Conversation", menu="ai", enabled=lambda a: is_cli(),
                  description="Claude Code: forget this project's conversation and start a fresh one")

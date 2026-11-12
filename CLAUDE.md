@@ -287,6 +287,18 @@ carries the tool calls so live turns record Looked at. Core
 saved `.md` note deduped by label, request and reply). Setting
 `keep_history` (default true) turns the log off.
 
+Same PR, at Aaron's request: AI > Update Story Bible from Conversation
+(`plugins/ai/bible.py`, pure: `request`, `parse` of a JSON array of
+{section, entry, note}, `merge` appending bullets at the end of the
+matching `##` section, case-insensitive, new sections at the end). It is a
+one-off request (`persist=False`, not logged); with Claude Code files on,
+the conversation goes to `.inkmill/conversation-for-bible.md`. `BibleReview`
+is an OptionList with drawn `[x]` marks (Textual's SelectionList misplaces
+checkboxes on wrapped items); Space and A are screen bindings, not on_key,
+so they run after a queued arrow move (checked in tmux). A
+reply that is not JSON falls back to the reply panel. Verified with real
+claude haiku: settled facts proposed, the undecided brother left out.
+
 ## Status
 
 - 0.1.0 committed and pushed 2026-11-02. 52 tests pass (pytest with

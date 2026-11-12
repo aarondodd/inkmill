@@ -17,6 +17,10 @@
 - `inkmill --import-conversation FOLDER [--from SOURCE]` copies earlier
   Claude Code conversations, or a saved conversation note, into a
   project's record.
+- AI > Update Story Bible from Conversation suggests story bible entries
+  for what the conversation settled, filed under the bible's headings and
+  flagged when they contradict it; you uncheck the wrong ones and the rest
+  are added to the matching sections.
 
 ## 0.5.3
 

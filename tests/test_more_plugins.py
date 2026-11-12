@@ -303,3 +303,22 @@ async def test_ai_history_stays_in_memory_when_the_log_is_off(tmp_path, fake_ai)
         app.run_command("ai.history")
         assert await wait_for(pilot, lambda: type(app.screen).__name__ == "TurnList")
     assert not (tmp_path / ".inkmill").exists()
+
+
+async def test_ai_bible_update_shows_a_reply_that_is_not_a_list(tmp_path, fake_ai):
+    doc = tmp_path / "d.md"
+    doc.write_text("A sentence.\n")
+    ai_settings = {"provider": "ollama", "base_url": fake_ai, "model": "llama3.1"}
+    app = app_with(tmp_path, "ai", paths=[doc], plugins={"ai": ai_settings})
+    async with app.run_test(size=(120, 30)) as pilot:
+        app.run_command("ai.summarize")
+        assert await wait_for(pilot, lambda: type(app.screen).__name__ == "ConfirmDialog")
+        await pilot.press("a")
+        assert await wait_for(pilot, lambda: app.panel.visible and app.panel.content.done)
+        first = app.panel.content
+        app.run_command("ai.bible_update")
+        # The fake server answers prose, so the reply goes to the panel instead of the review list.
+        assert await wait_for(pilot, lambda: app.panel.content is not first)
+        assert app.panel.content.entries[0].label == "Story bible"
+        assert app.panel.content.text.startswith("One")
+    assert not (tmp_path / "Story Bible.md").exists()

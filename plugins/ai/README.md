@@ -16,6 +16,7 @@ All commands are in the AI menu (Alt+A):
 | Write Synopsis | One or two sentences for the chapter, which you can edit before it is saved to front matter (and shown in Binder's outline) |
 | Continuity Check | Reads the whole binder and its research notes and lists names, dates, places and facts that disagree, quoting both passages |
 | Story Bible | Opens the project's story bible, creating it if needed (see below) |
+| Update Story Bible from Conversation... | Suggests bible entries for what the conversation settled; you pick which to add (see below) |
 | New Conversation | Claude Code only: start a fresh conversation for this project |
 | Conversation History... | The earlier requests and replies in this project's conversation, to pick one and read it in the reply panel (see below) |
 | Continue in Claude Code... | Claude Code only: the command that opens this project's conversation in Claude Code itself |
@@ -302,6 +303,26 @@ question). Continuity Check also reports passages that contradict it.
 In the reply panel, B appends the reply to the story bible under a dated
 heading, for answers worth keeping such as a character sheet you asked for.
 Edit it down afterwards; it is your file.
+
+AI > Update Story Bible from Conversation reads the project's whole
+conversation (every turn Conversation History lists) and the story bible,
+and suggests entries for what the conversation settled that the bible
+does not yet say: who people are, places, the timeline, the plot and the
+style. Ideas you rejected or left undecided are left out. Each suggestion
+names the bible heading it belongs under, and says so when it contradicts
+something the bible already holds. They are listed with every one checked;
+uncheck the ones that are wrong (Space or Enter), then press A or choose
+Add checked. Each entry is added as a bullet at the end of its heading's
+section, and a heading the bible lacks is added at the end. If the bible
+is open with unsaved changes, the entries go into the open copy, to save
+or undo as usual.
+
+This request is not part of the conversation and is not listed in its
+history. With Claude Code reading project files, Inkmill writes the
+conversation to `.inkmill/conversation-for-bible.md` for Claude to read;
+otherwise the conversation (its newest turns, up to half of
+`max_context_chars`) and the bible go with the request. Run it again after
+more discussion: it suggests only what the bible does not already say.
 
 ## Privacy
 
