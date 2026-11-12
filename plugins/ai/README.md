@@ -125,6 +125,51 @@ replies start missing earlier details. Very long conversations are
 summarized by Claude Code to make room ("compacted"), and a summary keeps
 less detail than the original. That is what the story bible is for.
 
+### From an idea to a binder
+
+A document that is not in a binder shares its conversation with every
+other loose document in the same folder. So give each idea its own folder
+from the start (`ideas/lighthouse/lighthouse.md`, not a single `ideas/`
+folder of drafts), and its conversation stays its own.
+
+When the idea grows into a project, keep the conversation by putting the
+binder in that same folder:
+
+1. Open the idea's document.
+2. Choose Binder > New Binder Document... and accept the folder it offers
+   (the document's own). The document becomes the binder's first entry.
+3. Carry on. The binder's folder is the folder the conversation already
+   belongs to, so the next AI request continues it, and Conversation
+   History shows every earlier turn.
+
+New chapters can go in a subfolder (`chapters/`): the project is the
+binder's folder, so they share the conversation too.
+
+To add the idea to a binder that already exists in another folder, the
+conversation cannot come along: Claude Code only continues a conversation
+from the folder it was started in, so inside the binder you get the
+binder's conversation instead. Keep the old one as a note:
+
+1. With the document still outside the binder, choose AI > Save
+   Conversation as Research Note.... The note goes in a `research` folder
+   beside the document.
+2. If you want the file beside the binder's chapters, move it there
+   first with List Files (F5), which updates its links.
+3. With the idea's document open, choose Binder > Link Document..., then
+   "Binder (parent document)", and pick the binder's file. Answer Yes when
+   asked to link back, so the document joins the binder's contents.
+4. Still in that document, choose Binder > Add Research... and pick the
+   saved note. It is now listed with the binder's research.
+5. When you next ask something, name the note (for example "first read
+   the research note ai-conversation-2026-11-12.md"). With project files
+   on, Claude finds and reads it.
+
+The old conversation also stays in Claude Code: run `claude --resume` in a
+terminal in the idea's old folder to find it. That lasts until Claude Code
+cleans it up; by default it removes conversations unused for about 30
+days, and its `cleanupPeriodDays` setting changes that. The research note
+is the copy that lasts.
+
 Write Synopsis is the one command kept out of the conversation, so
 generating synopses for twenty chapters does not crowd it.
 

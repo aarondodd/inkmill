@@ -26,7 +26,7 @@
       ],
       "path": "ai",
       "files": {
-        "README.md": "618f6f396aab4a38455cb20d5a39f583e3c91cb829fe1d0e89496311ac6b3e4b",
+        "README.md": "791f6a2007f5b74b206662c8756026fa91c8d90e1ab09a5eca40f6cd476ace9c",
         "__init__.py": "2c0f95f4dfb3fb5a49e26ebb052d20d9726232ca42f4aab91b1fa9608ec610dd",
         "claudecode.py": "4d7957de7e41094ac81efcae3fa9927aa108c7003fcd97412f5b4ebae1683e9f",
         "client.py": "d3015312f9bdbb007041c44975ac43dc7b1c17673f19c096b31134c95a2868cd",
@@ -44,7 +44,7 @@
       "license": "MIT",
       "path": "binder",
       "files": {
-        "README.md": "cf3d8103daf801ad31bca20bf9159f392399f541cba6cc691dd9577b636d6b6f",
+        "README.md": "18254e75449a8ace3dfa0c46bb1e548beafb5f838a609fa5460682dd52b21e24",
         "__init__.py": "3616d5b22484fc4f9488bcbd706de672e004ac5b7a255d096528b7ecd7956a61",
         "clip.py": "c5c2cb8b979e611563c471f664241ae6eae1e9b5a12b0d5e53d9d6e2c8866b48",
         "model.py": "c5ca8780e66c6713f83745ca15b6196e9f4c2b99f7096654b668d7b695b6efe2",

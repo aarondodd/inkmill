@@ -99,7 +99,10 @@ to the binder (setting `research_folder`) and link them both ways. Clipping
 keeps a page's main text, headings, lists, quotes and links, and drops
 navigation and scripts. The AI Assistant's Continuity Check reads research
 notes along with the manuscript, and its Save Conversation as Research Note
-command adds a conversation with Claude the same way.
+command adds a conversation with Claude the same way. To turn a loose
+document that already has a Claude Code conversation into a binder
+without losing it, see "From an idea to a binder" in the AI Assistant's
+README.
 
 ## Binder Outline
 
