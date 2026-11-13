@@ -365,8 +365,8 @@ their reasons; a continuation inserted at the end with a space join.
 - 0.5.2 (format commands) merged by Aaron as PR #8.
 - 0.5.3 (save conversation as research note) merged by Aaron as PR #9.
 - 0.5.4 (lasting conversation record, import flag, story bible update) merged by Aaron as PR #10.
-- 0.5.5 (document titles) on branch `document-titles`, PR #11.
-- 0.5.6 (Continue Writing, Suggest Edits) on branch `ai-edits`, stacked on #11.
+- 0.5.5 (document titles) merged by Aaron as PR #11.
+- 0.5.6 (Continue Writing, Suggest Edits) merged by Aaron as PR #12, which landed on `document-titles` because #11 had already merged; brought to main by a merge commit (4f831e6) at his request.
 - Not yet exercised by a human on Windows Terminal or Termux. L-2026-07-19-001
   applies: verify there before calling it done.
 
