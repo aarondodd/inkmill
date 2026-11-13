@@ -1,6 +1,6 @@
 id = "ai"
 name = "AI Assistant"
-version = "1.4.0"
+version = "1.4.1"
 requires_inkmill = ">=0.3"
 summary = "Opt-in help from Claude (through Claude Code on your Claude plan, or an API key), a local Ollama model or any OpenAI-compatible server: feedback, rewrites, continuations, suggested edits to accept or reject, synopses and a continuity check across a binder. The reply panel pages through earlier turns, kept in each project folder whichever provider answered."
 author = "Aaron Dodd"

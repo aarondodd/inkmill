@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.7
+
+- After I inserted a Continue Writing reply, the AI panel stayed open with
+  the cursor in the text, so Esc opened the menu instead of closing the
+  panel. The panel now keeps focus, as it does after any other insert: Esc
+  closes it and returns to the text, just after the new part (AI Assistant
+  1.4.1).
+
 ## 0.5.6
 
 - AI > Continue Writing (AI Assistant 1.4) writes on from the cursor in

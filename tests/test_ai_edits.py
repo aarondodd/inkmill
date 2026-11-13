@@ -133,6 +133,12 @@ async def test_continue_writing_inserts_where_the_cursor_was(tmp_path, monkeypat
         await pilot.press("i")
         assert editor.text == "Mara walked her dog. She ran to the lake.\n\nThe end.\n"
         assert editor.cursor_location == (0, len("Mara walked her dog. She ran to the lake."))
+        # The panel keeps focus, so Esc closes it and goes back to the text.
+        assert app.focused is panel
+        await pilot.press("escape")
+        assert not app.panel.visible and app.focused is editor
+        await pilot.press("x")
+        assert editor.text.startswith("Mara walked her dog. She ran to the lake.x")
     prompt = sent(tmp_path)[0]["prompt"]
     assert conv.CONTINUE in prompt and "Write about 300 words." in prompt
     assert f"{conv.ENDS_HERE}Mara walked her dog." in prompt and f"{conv.FOLLOWS}\n\nThe end." in prompt
