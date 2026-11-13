@@ -26,7 +26,7 @@
       ],
       "path": "ai",
       "files": {
-        "README.md": "2641548c1ef5dc7862efe8d6e69575ef0534e465f2f243ac7bfd651729ec31d7",
+        "README.md": "c1d2c38483de86dccdd311f3d0fa986299e7eb2d881b588d15438d4bac2979cc",
         "__init__.py": "e7c5d30490425a1fa28607e1ee273ed27a3cb4afb5d38f68fdff91b9c07abbfa",
         "bible.py": "28ab542f03b4ee75861acd333826939385bc58c847aef04c93ad03672d924dac",
         "claudecode.py": "8b029f50fd6ba7a46444afdff6aa505803299f5ee7dbc53786e1f14fae57c984",
