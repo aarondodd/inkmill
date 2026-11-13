@@ -319,6 +319,38 @@ regenerated from `app.save_screenshot` SVG, rendered by headless Edge and
 cropped with Pillow (shared venv); the directory label was set to the
 original demo path.
 
+### 0.5.6 AI edits
+
+Aaron asked (2026-11-12) whether the AI chat can edit the document, then
+asked for two additions. AI > Continue Writing (`ai.continue`, no dialog)
+sends `CONTINUE` plus `ENDS_HERE` and the text before the cursor
+(`continue_context_chars`, 6000) and `FOLLOWS` with up to 1500 characters
+after it, asking for `continue_words` (300). `state["anchor"]` holds (doc
+id, index, the 200 characters before it); `ReplyPanel(continuation=True)`
+makes I call `insert_continuation`, which inserts at the anchor when that
+text is unchanged, otherwise at the cursor, using `edits.join` for the
+space or paragraph break, then moves the anchor after the insert so a
+follow-up continues from there. `state["continuation"]` carries this to Q
+follow-ups.
+
+AI > Suggest Edits (`ai.suggest_edits`) asks for a JSON array of {find,
+replace, why} (`conversation.SUGGEST`; the fake claude answers any "Reply
+with only a JSON array" prompt from FAKE_CLAUDE_REPLY). It goes through
+`send_once`: part of the project's conversation (persisted, header and
+bible as in `ask`) but with no reply panel, and logged with the edits as a
+Markdown list. `edits.locate` finds each `find` after the previous one,
+then from the start; skips edits that overlap, touch CriticMarkup or are
+not found; and `narrow` splits each into word-level changes with difflib
+(the reason stays on the first piece), since real haiku quoted context and
+folded two fixes into one edit. Whole-document scope is the body after
+front matter. With the comments plugin enabled, the scope is replaced in
+one editor edit by `{~~old~>new~~}{>>why<<}` marks and `comments.review`
+opens; otherwise `EditReview` (the bible checklist, now a `CheckList`
+base) applies the chosen ones. Comments & Track Changes 1.1 treats an
+add, delete or replace followed by a comment as one mark. Checked live in
+tmux with real claude haiku: 3 edits marked, A and R resolved them with
+their reasons; a continuation inserted at the end with a space join.
+
 ## Status
 
 - 0.1.0 committed and pushed 2026-11-02. 52 tests pass (pytest with
@@ -333,7 +365,8 @@ original demo path.
 - 0.5.2 (format commands) merged by Aaron as PR #8.
 - 0.5.3 (save conversation as research note) merged by Aaron as PR #9.
 - 0.5.4 (lasting conversation record, import flag, story bible update) merged by Aaron as PR #10.
-- 0.5.5 (document titles) on branch `document-titles`.
+- 0.5.5 (document titles) on branch `document-titles`, PR #11.
+- 0.5.6 (Continue Writing, Suggest Edits) on branch `ai-edits`, stacked on #11.
 - Not yet exercised by a human on Windows Terminal or Termux. L-2026-07-19-001
   applies: verify there before calling it done.
 

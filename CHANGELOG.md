@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.5.6
+
+- AI > Continue Writing (AI Assistant 1.4) writes on from the cursor in
+  your voice, with nothing to type: it sends the text before the cursor
+  and the text after it, and asks for about `continue_words` (300). I in
+  the reply panel inserts it where the cursor was when you asked, adding
+  the space or paragraph break the text needs; a follow-up such as "keep
+  going" inserts after it.
+- AI > Suggest Edits asks for edits to the selection or the whole document
+  (fix typos, cut filler, anything you say), each with a short reason. With
+  Comments & Track Changes they are written into the text as suggestions
+  and Review Changes opens, so you accept or reject each in place; without
+  it, a checklist applies the ones you keep. Edits are cut down to the
+  words that change, front matter is left alone, and edits that cannot be
+  found are skipped and counted.
+- Comments & Track Changes 1.1: a suggestion followed directly by a
+  comment (`{~~old~>new~~}{>>why<<}`) is one review item, and accepting or
+  rejecting it removes the comment too.
+
 ## 0.5.5
 
 - A Markdown document's front matter `title` now names it in List Files

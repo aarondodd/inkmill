@@ -3,8 +3,9 @@
 Add Comment (Alt+C) annotates the selection, or drops a comment at the
 cursor. Suggest Insertion, Deletion and Replacement record edits for someone
 to accept or reject. Review Changes lists every comment and suggestion in
-the side panel: Enter goes to it, A accepts, R rejects. Accept All and
-Reject All finish a round.
+the side panel: Enter goes to it, A accepts, R rejects. A suggestion
+followed directly by a comment ({~~old~>new~~}{>>why<<}) is one item, and
+the comment goes with it. Accept All and Reject All finish a round.
 
 Exports show the marks (``export = "show"``, the default), or apply them as
 if every suggestion were accepted (``"final"``) or rejected (``"original"``);
@@ -100,12 +101,17 @@ def register(api):
         ranges = []
         for mark in critic.marks(text):
             style = {"add": "critic.add", "delete": "critic.delete"}.get(mark.kind, "critic.note")
+            end = mark.end
+            if mark.note and mark.kind in ("add", "delete", "replace"):
+                # The reason comment after a suggested edit.
+                end = text.rindex("{>>", mark.start, mark.end)
+                ranges.append((editor.location_of(end), editor.location_of(mark.end), "critic.note"))
             if mark.kind == "replace":
                 arrow = text.index("~>", mark.start)
                 ranges.append((editor.location_of(mark.start), editor.location_of(arrow), "critic.delete"))
-                ranges.append((editor.location_of(arrow), editor.location_of(mark.end), "critic.add"))
+                ranges.append((editor.location_of(arrow), editor.location_of(end), "critic.add"))
             else:
-                ranges.append((editor.location_of(mark.start), editor.location_of(mark.end), style))
+                ranges.append((editor.location_of(mark.start), editor.location_of(end), style))
         editor.set_decorations(OWNER, ranges)
 
     def render_list() -> None:
