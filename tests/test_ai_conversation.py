@@ -441,7 +441,8 @@ async def test_update_story_bible_from_the_conversation(tmp_path, monkeypatch):
     app = app_with(tmp_path, "ai", paths=[doc], plugins={"ai": settings})
     async with app.run_test(size=(140, 40)) as pilot:
         app.run_command("ai.bible_update")
-        assert await wait_for(pilot, lambda: type(app.screen).__name__ == "BibleReview", timeout=10)
+        assert await wait_for(pilot, lambda: type(app.screen).__name__ == "BibleReview"
+                              and app.screen.query("OptionList"), timeout=10)
         review = app.screen
         assert review.query_one("OptionList").option_count == 2 and review.chosen() == [0, 1]
         await pilot.press("down", "space")  # uncheck the lake town

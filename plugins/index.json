@@ -5,9 +5,9 @@
     {
       "id": "ai",
       "name": "AI Assistant",
-      "version": "1.3.0",
+      "version": "1.4.0",
       "requires_inkmill": ">=0.3",
-      "summary": "Opt-in help from Claude (through Claude Code on your Claude plan, or an API key), a local Ollama model or any OpenAI-compatible server: feedback, rewrites, synopses and a continuity check across a binder. The reply panel pages through earlier turns, kept in each project folder whichever provider answered.",
+      "summary": "Opt-in help from Claude (through Claude Code on your Claude plan, or an API key), a local Ollama model or any OpenAI-compatible server: feedback, rewrites, continuations, suggested edits to accept or reject, synopses and a continuity check across a binder. The reply panel pages through earlier turns, kept in each project folder whichever provider answered.",
       "author": "Aaron Dodd",
       "license": "MIT",
       "requires": [
@@ -26,13 +26,14 @@
       ],
       "path": "ai",
       "files": {
-        "README.md": "a241031bd44465354c813688e3a772af880743930ab2ee1c6c05b62bd4edbb50",
-        "__init__.py": "da8e5423f0a221085196d136c9048523d426fc76f33246f1ec2a2c7a6fc993c9",
+        "README.md": "c1d2c38483de86dccdd311f3d0fa986299e7eb2d881b588d15438d4bac2979cc",
+        "__init__.py": "e7c5d30490425a1fa28607e1ee273ed27a3cb4afb5d38f68fdff91b9c07abbfa",
         "bible.py": "28ab542f03b4ee75861acd333826939385bc58c847aef04c93ad03672d924dac",
         "claudecode.py": "8b029f50fd6ba7a46444afdff6aa505803299f5ee7dbc53786e1f14fae57c984",
         "client.py": "d3015312f9bdbb007041c44975ac43dc7b1c17673f19c096b31134c95a2868cd",
-        "conversation.py": "d8db83b6b6aeecf99df08e6749222ae3a64a93b66a93ad10d38a77da8ef1f68a",
-        "plugin.toml": "3d0bd2b8d031dba06bf8801950387ad7d63935598fc1e6c9047703a78386c804"
+        "conversation.py": "ecf6277a734806067cf4127f19792470a29988f6a5784005d4ef8bb00c08e973",
+        "edits.py": "011fcfe4cd31a20d67425f63c16b7e2299b172e77530bb18b5af873d618b6652",
+        "plugin.toml": "5dd8a7e99dcaa9a8665b5e711e61a472ec117368d0439a22c59d9f14ed572317"
       }
     },
     {
@@ -57,17 +58,17 @@
     {
       "id": "comments",
       "name": "Comments & Track Changes",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "requires_inkmill": ">=0.3",
       "summary": "Comments and suggested insertions, deletions and replacements in CriticMarkup, with a review list to accept or reject them.",
       "author": "Aaron Dodd",
       "license": "MIT",
       "path": "comments",
       "files": {
-        "README.md": "f484e6ff7abc78ef3c1aaf737f27a59160f86d7433d39076ea3082bac708bd7d",
-        "__init__.py": "8c3e1bc4565b4c949ec5c6f395d7e47ad00bb7b9308c511d178bdf2aca581aee",
-        "critic.py": "2b955f133f7612cd397b0a66290ff9a13da11357070b41e4ce281f322d9496e1",
-        "plugin.toml": "c89a2391602b7036da76787ab7f755de36cc1095800426255d0394111d09f389"
+        "README.md": "4cc3950b8a896e4145b86645aa988debaff5816a60bbeb9c84b7e207511b00ce",
+        "__init__.py": "0bef81b0693991feb27c2afb8340c859ee2ac7db5a329f515113f3600de368a1",
+        "critic.py": "1419d71ae033519e017af9fd6d488643dbd7d66ef5d65196b55507656ae64c0b",
+        "plugin.toml": "5b4d3eebdbd91bf25a4905069a31479ca3bfc256cd9075e9ee6626f9289bb5c6"
       }
     },
     {

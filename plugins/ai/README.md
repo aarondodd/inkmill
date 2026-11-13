@@ -1,7 +1,9 @@
 # AI Assistant
 
 Help from a language model when you ask for it, and only then. Replies
-appear in the side panel and never change your text on their own.
+appear in the side panel and never change your text on their own. The one
+exception is Suggest Edits, which writes its suggestions into the text as
+tracked changes for you to accept or reject.
 
 ![AI feedback](https://raw.githubusercontent.com/aarondodd/inkmill/main/docs/screenshots/ai.png)
 
@@ -12,6 +14,8 @@ All commands are in the AI menu (Alt+A):
 | Ask... | Any question about the selection, or about the whole document |
 | Feedback | An editor's notes on the selection or the chapter: what works, and the three changes that would help most |
 | Rewrite Selection... | Three versions of the selection (tighter, warmer, simpler: you say how); press 1, 2 or 3 to use one |
+| Continue Writing | New text that carries on from the cursor, in your voice; I puts it where the cursor was when you asked (see below) |
+| Suggest Edits... | Edits to the selection or the whole document, for whatever you ask (fix typos, cut filler, make her angrier), marked in the text as tracked changes to accept or reject one by one (see below) |
 | Summarize | A short summary and the key points |
 | Write Synopsis | One or two sentences for the chapter, which you can edit before it is saved to front matter (and shown in Binder's outline) |
 | Continuity Check | Reads the whole binder and its research notes and lists names, dates, places and facts that disagree, quoting both passages |
@@ -29,6 +33,43 @@ In the reply panel: I inserts the reply at the cursor, R replaces the text
 you selected, 1 to 3 pick a rewrite, Q asks a follow-up question in the same
 conversation, B adds the reply to the story bible, C copies the reply, and
 Esc closes the panel (and stops a reply still arriving).
+
+### Editing with the AI
+
+The AI never edits a file by itself (with Claude Code it can only read
+them). Its text reaches your document in one of four ways, and Ctrl+Z undoes
+each:
+
+- Insert or replace: after Ask or Rewrite Selection, I inserts the reply at
+  the cursor and R replaces the text you had selected (1 to 3 pick one of
+  the rewrites). Q asks for changes first ("shorter", "keep the last line").
+- Continue Writing: put the cursor where the new text should go and choose
+  AI > Continue Writing. Nothing to type: it sends the text before the
+  cursor (and the text after it, so the new part leads into it) and asks
+  for about 300 words (`continue_words`). With Claude Code it also knows the
+  conversation and the story bible, so "continue the scene as we planned"
+  works through Q. I inserts the result where the cursor was when you
+  asked, even if you have moved since, and adds the space or paragraph
+  break the text needs; a second I after a follow-up ("keep going") goes
+  after the part you inserted. If the text before that spot changed in the
+  meantime, it goes at the cursor instead.
+- Suggest Edits: select a passage, or nothing for the whole document, and
+  say what should change. Each edit comes back with a short reason. With
+  Comments & Track Changes enabled (the default), the edits are written into
+  the text as suggestions, `{~~old~>new~~}{>>reason<<}`, and Review Changes
+  opens in the side panel: Enter goes to an edit, A accepts it, R rejects
+  it, and Review > Accept All or Reject All finishes the rest. Ctrl+Z right
+  after removes every suggestion at once. Without that plugin, a list of
+  the edits opens instead: uncheck the ones you do not want and A applies
+  the rest. Edits are cut down to the words that change (two fixes in one
+  edit become two), front matter is
+  left alone, and an edit whose text cannot be found, or that would overlap
+  another edit or existing markup, is skipped and counted on the status
+  line.
+
+Suggest Edits is part of the project's conversation, so you can ask about
+an edit afterwards ("why cut that line?"). The history shows the edits as a
+list.
 
 ### Earlier turns
 
@@ -358,10 +399,13 @@ provider = "anthropic"     # or "claude-code", "ollama", "openai"
 model = "claude-sonnet-5-5"
 base_url = ""              # a different server address
 max_tokens = 2048
-max_tokens_long = 4096     # for Continuity Check
+max_tokens_long = 4096     # for Continuity Check, Continue Writing and Suggest Edits
 max_context_chars = 600000
 story_bible = "Story Bible.md"
 keep_history = true        # keep every turn in the project's .inkmill folder
+continue_words = 300       # how much Continue Writing asks for
+continue_context_chars = 6000  # how much of the text before the cursor it sends
+suggest_edits = "fix spelling, grammar and clumsy phrasing"  # Suggest Edits' starting request
 
 # Claude Code only
 command = "claude"         # the program, a full path, or a wrapper command

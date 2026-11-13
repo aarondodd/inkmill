@@ -326,7 +326,7 @@ you trust.
 | [Progress](plugins/progress/README.md) | Words written today against a goal, streaks, timed sprints, and the pace needed to meet a deadline (Ctrl+F8). |
 | [Templates & Journal](plugins/templates/README.md) | New documents from templates (chapter, scene card, character, query letter, your own) and a daily journal page (Alt+J). |
 | [Export via Pandoc](plugins/pandoc/README.md) | DOCX, standard manuscript format, ODT, EPUB, PDF, RTF and LaTeX, for a document or a whole binder; import from Word and others. Needs pandoc. |
-| [AI Assistant](plugins/ai/README.md) | Opt-in feedback, rewrites, synopses and a continuity check across a binder, from Claude Code on your Claude plan (one remembered conversation per project), Claude with an API key, a local Ollama model or any OpenAI-compatible server. A per-project story bible keeps the facts straight. Replies never change your text unless you say so. |
+| [AI Assistant](plugins/ai/README.md) | Opt-in feedback, rewrites, continuations from the cursor, suggested edits marked as tracked changes to accept or reject, synopses and a continuity check across a binder, from Claude Code on your Claude plan (one remembered conversation per project), Claude with an API key, a local Ollama model or any OpenAI-compatible server. A per-project story bible keeps the facts straight. Replies never change your text unless you say so. |
 | [Git Sync](plugins/git_sync/README.md) | Commit the current document with a message (Ctrl+F12), pull and push the repository it lives in. Needs git. |
 | [Themes](plugins/themes/README.md) | Ten more screen themes, a gallery that previews each one on your document, and your own themes as small TOML files. |
 

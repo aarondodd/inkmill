@@ -42,6 +42,21 @@ CONTINUITY = (
     "story bible. For each, quote both passages and name the chapters. Group them by kind, most serious "
     "first. If you find none in a group, leave it out."
 )
+CONTINUE = (
+    "Continue the writer's text from where the passage below stops, in their voice, keeping to the story "
+    "bible and to what we have discussed. Reply with only the new text, with no heading, notes or "
+    "commentary, starting exactly where the passage stops: begin with a blank line if a new paragraph "
+    "comes next."
+)
+SUGGEST = (
+    "Suggest edits to the text: {how}. Change only what that asks for and keep the writer's voice. "
+    "Reply with only a JSON array and no other text. Each item is an object with \"find\" (the exact text "
+    "to change, copied character for character from the document, long enough to occur only once, at "
+    "most a few sentences), \"replace\" (what it becomes; empty to delete it) and \"why\" (a short "
+    "reason). Make each item a single change. Reply [] if nothing needs changing."
+)
+ENDS_HERE = "The passage, which ends where the new text goes:\n\n"
+FOLLOWS = "The text that comes after the new text (do not repeat it; lead into it):\n\n"
 WHOLE_DOCUMENT = "The text is the whole document the writer is working on (named above); read it."
 PASSAGE = "The passage:\n\n"
 TEXT = "The text:\n\n"
@@ -57,6 +72,7 @@ LOG_NAME = "ai-conversation.jsonl"
 EARLIER_NAME = "earlier-conversation.md"
 
 _REWRITE = re.compile(r"Rewrite the passage below three different ways, (.+?)\. Keep the meaning")
+_SUGGEST = re.compile(r"^Suggest edits to the text: (.+?)\. Change only what that asks for")
 _HEADING = re.compile(r"^(#{1,4})(\s)", re.MULTILINE)
 _FENCE = re.compile(r"^\s{0,3}(`{3,}|~{3,})")
 
@@ -248,10 +264,16 @@ def clean_request(text: str, from_inkmill: bool = False) -> tuple[str, str]:
 
 
 def _name_command(text: str, *, context_first: bool) -> tuple[str, str]:
-    for wording, label in ((FEEDBACK, "Feedback"), (SUMMARY, "Summarize"), (CONTINUITY, "Continuity Check")):
+    for wording, label in ((FEEDBACK, "Feedback"), (SUMMARY, "Summarize"), (CONTINUITY, "Continuity Check"),
+                           (CONTINUE, "Continue")):
         at = text.find(wording)
         if at >= 0 and (context_first or at == 0 or label == "Continuity Check"):
             return label, "" if label == "Continuity Check" else _about(text[at + len(wording):])
+    match = _SUGGEST.search(text)
+    if match:
+        end = text.find("needs changing.", match.end())
+        rest = text[end + len("needs changing."):] if end >= 0 else ""
+        return f"Suggest Edits ({match.group(1)})", _about(rest)
     match = _REWRITE.search(text)
     if match:
         end = text.find("commentary.", match.end())
@@ -265,6 +287,12 @@ def _name_command(text: str, *, context_first: bool) -> tuple[str, str]:
 def _about(text: str) -> str:
     """The rest of a request, with the document text it carried shortened."""
     text = text.strip()
+    at = text.find(ENDS_HERE)
+    if at >= 0:
+        passage = text[at + len(ENDS_HERE):].split(FOLLOWS)[0].strip()
+        if len(passage) > 300:
+            passage = "..." + passage[-300:].lstrip()
+        return f"{text[:at].strip()}\n\nContinuing after:\n\n{_quote(passage)}".strip()
     for marker, render in ((WHOLE_DOCUMENT, None), (PASSAGE, "passage"), (TEXT, None)):
         at = text.find(marker)
         if at < 0:
