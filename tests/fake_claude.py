@@ -4,7 +4,8 @@ It logs each call (arguments, working folder, prompt) to FAKE_CLAUDE_LOG and
 answers in Claude Code's stream-json shape. The prompt picks the behavior:
 "LOGIN" fails as if not logged in, "READ" first uses the Read tool, a
 resume of the id "gone" reports a missing conversation, and the story bible
-request is answered with FAKE_CLAUDE_REPLY.
+request and other requests for JSON are answered with FAKE_CLAUDE_REPLY, and
+Continue Writing with FAKE_CLAUDE_CONTINUE.
 """
 
 import json
@@ -47,6 +48,8 @@ def main():
     pieces = ["One\n---\n", "Two\n---\nThree"]
     if "Reply with only a JSON array" in prompt:
         pieces = [os.environ.get("FAKE_CLAUDE_REPLY", "[]")]
+    elif "Continue the writer's text" in prompt:
+        pieces = [os.environ.get("FAKE_CLAUDE_CONTINUE", "She ran."), ""]
     for piece in pieces:
         delta(piece)
     emit({"type": "result", "subtype": "success", "is_error": False, "result": "".join(pieces), "session_id": session})

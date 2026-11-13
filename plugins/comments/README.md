@@ -12,6 +12,7 @@ Inkmill can still read them.
 | `{++added++}` | Suggested insertion |
 | `{--removed--}` | Suggested deletion |
 | `{~~old~>new~~}` | Suggested replacement |
+| `{~~old~>new~~}{>>why<<}` | A suggestion with its reason; accepting or rejecting it removes the reason too |
 
 All commands are in the Review menu (Alt+R):
 

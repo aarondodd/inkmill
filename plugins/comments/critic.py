@@ -2,8 +2,9 @@
 
     {++added++}  {--deleted--}  {~~old~>new~~}  {==highlighted==}  {>>comment<<}
 
-A highlight followed directly by a comment is one annotation: the comment is
-about the highlighted text.
+A highlight or a suggested edit followed directly by a comment is one
+annotation: the comment is about the highlighted text, or gives the reason
+for the edit, and goes with it when the edit is accepted or rejected.
 """
 
 from __future__ import annotations
@@ -13,9 +14,9 @@ import re
 from dataclasses import dataclass
 
 MARK = re.compile(
-    r"\{\+\+(?P<add>.*?)\+\+\}"
-    r"|\{--(?P<delete>.*?)--\}"
-    r"|\{~~(?P<old>.*?)~>(?P<new>.*?)~~\}"
+    r"\{\+\+(?P<add>.*?)\+\+\}(?:\{>>(?P<add_note>.*?)<<\})?"
+    r"|\{--(?P<delete>.*?)--\}(?:\{>>(?P<delete_note>.*?)<<\})?"
+    r"|\{~~(?P<old>.*?)~>(?P<new>.*?)~~\}(?:\{>>(?P<replace_note>.*?)<<\})?"
     r"|\{==(?P<mark>.*?)==\}(?:\{>>(?P<note>.*?)<<\})?"
     r"|\{>>(?P<comment>.*?)<<\}",
     re.DOTALL,
@@ -41,23 +42,26 @@ class Mark:
         return {"add": "", "delete": self.text, "highlight": self.text, "comment": ""}[self.kind]
 
     def label(self) -> str:
-        if self.kind == "replace":
-            old, new = self.text.split("\0")
-            return f"change {old!r} to {new!r}"
         if self.kind == "highlight":
             return f"{self.text!r}: {self.note}" if self.note else f"highlight {self.text!r}"
-        return {"add": "add", "delete": "delete", "comment": "comment"}[self.kind] + f" {self.text!r}"
+        if self.kind == "replace":
+            old, new = self.text.split("\0")
+            shown = f"change {old!r} to {new!r}"
+        else:
+            shown = {"add": "add", "delete": "delete", "comment": "comment"}[self.kind] + f" {self.text!r}"
+        return f"{shown} ({self.note})" if self.note else shown
 
 
 def marks(text: str) -> list[Mark]:
     found = []
     for m in MARK.finditer(text):
         if m.group("add") is not None:
-            found.append(Mark(m.start(), m.end(), "add", m.group("add")))
+            found.append(Mark(m.start(), m.end(), "add", m.group("add"), m.group("add_note") or ""))
         elif m.group("delete") is not None:
-            found.append(Mark(m.start(), m.end(), "delete", m.group("delete")))
+            found.append(Mark(m.start(), m.end(), "delete", m.group("delete"), m.group("delete_note") or ""))
         elif m.group("old") is not None:
-            found.append(Mark(m.start(), m.end(), "replace", m.group("old") + "\0" + m.group("new")))
+            found.append(Mark(m.start(), m.end(), "replace", m.group("old") + "\0" + m.group("new"),
+                              m.group("replace_note") or ""))
         elif m.group("mark") is not None:
             found.append(Mark(m.start(), m.end(), "highlight", m.group("mark"), m.group("note") or ""))
         else:
@@ -83,12 +87,15 @@ def to_html(text: str) -> str:
 
     def render(m: re.Match) -> str:
         esc = html.escape
+        reason = m.group("add_note") or m.group("delete_note") or m.group("replace_note")
+        after = f'<span class="critic-comment">{esc(reason)}</span>' if reason else ""
         if m.group("add") is not None:
-            return f'<ins class="critic">{esc(m.group("add"))}</ins>'
+            return f'<ins class="critic">{esc(m.group("add"))}</ins>{after}'
         if m.group("delete") is not None:
-            return f'<del class="critic">{esc(m.group("delete"))}</del>'
+            return f'<del class="critic">{esc(m.group("delete"))}</del>{after}'
         if m.group("old") is not None:
-            return f'<del class="critic">{esc(m.group("old"))}</del><ins class="critic">{esc(m.group("new"))}</ins>'
+            return (f'<del class="critic">{esc(m.group("old"))}</del>'
+                    f'<ins class="critic">{esc(m.group("new"))}</ins>{after}')
         if m.group("mark") is not None:
             note = m.group("note")
             title = f' title="{esc(note, quote=True)}"' if note else ""

@@ -2,9 +2,11 @@
 
 Nothing is sent until you run an AI command, and the first request to each
 server asks for your permission. Replies stream into the side panel and
-never change your text on their own: I inserts the reply at the cursor, R
-replaces the selection, 1 to 3 pick one of several rewrites, Q asks a
-follow-up, B adds the reply to the story bible, C copies.
+never change your text on their own: I inserts the reply at the cursor (a
+continuation goes where the cursor was when you asked), R replaces the
+selection, 1 to 3 pick one of several rewrites, Q asks a follow-up, B adds
+the reply to the story bible, C copies. Suggest Edits marks its suggestions
+in the text as tracked changes, for you to accept or reject one by one.
 
 Works with Claude Code (the claude program, on your Claude plan), Claude
 through the API (an Anthropic API key), a local Ollama server (no key, no
@@ -42,8 +44,9 @@ from inkmill import frontmatter
 from inkmill.config import config_dir, state_dir
 from inkmill.screens.dialogs import ChoiceDialog, ConfirmDialog, Dialog, InputDialog, TextDialog
 
-from . import bible, claudecode, client, conversation
-from .conversation import CONTINUITY, FEEDBACK, PASSAGE, REWRITE, SUMMARY, TEXT, WHOLE_DOCUMENT
+from . import bible, claudecode, client, conversation, edits
+from .conversation import (CONTINUE, CONTINUITY, ENDS_HERE, FEEDBACK, FOLLOWS, PASSAGE, REWRITE, SUMMARY, TEXT,
+                           WHOLE_DOCUMENT)
 
 SYSTEM = (
     "You are a writing assistant inside Inkmill, a Markdown word processor. The writer stays in charge: "
@@ -75,6 +78,7 @@ SPLIT = re.compile(r"^\s*-{3,}\s*$", re.MULTILINE)
 
 
 REQUEST_LINES = 8
+ANCHOR_CHECK = 200  # characters before a continuation's spot that must be unchanged to insert there
 
 
 class ReplyPanel(Vertical):
@@ -95,12 +99,13 @@ class ReplyPanel(Vertical):
 
     can_focus = True
 
-    def __init__(self, plugin, *, can_replace: bool = False, choices: bool = False,
+    def __init__(self, plugin, *, can_replace: bool = False, choices: bool = False, continuation: bool = False,
                  history: list | None = None, live=None, index: int | None = None) -> None:
         super().__init__()
         self.plugin = plugin
         self.can_replace = can_replace
         self.choices = choices
+        self.continuation = continuation
         self.entries = list(history or []) + ([live] if live is not None else [])
         self.live = len(self.entries) - 1 if live is not None else None
         self.index = index if index is not None else len(self.entries) - 1
@@ -236,7 +241,9 @@ class ReplyPanel(Vertical):
         if not ready or not key:
             return
         handled = True
-        if key == "i":
+        if key == "i" and self.continuation and self.viewing_live:
+            self.plugin.insert_continuation(self.text)
+        elif key == "i":
             self.plugin.insert(self.text.strip())
         elif key == "r" and self.can_replace and self.viewing_live:
             self.plugin.replace(self.text.strip())
@@ -316,41 +323,42 @@ class TurnList(Dialog):
         self.dismiss(int(event.option.id))
 
 
-class BibleReview(Dialog):
-    """Suggested story bible entries, each checked; the writer unchecks what
-    is wrong and adds the rest. Dismisses with the indexes to add, or None."""
+class CheckList(Dialog):
+    """Suggestions, each checked; the writer unchecks the wrong ones and
+    takes the rest. Dismisses with the indexes taken, or None."""
 
     DEFAULT_CSS = Dialog.DEFAULT_CSS + """
-    BibleReview .im-dialog { width: 100; max-height: 90%; }
-    BibleReview OptionList { height: auto; max-height: 24; background: $im-dialog-bg; border: none; }
-    BibleReview #hint { color: $im-dialog-fg 70%; }
+    CheckList .im-dialog { width: 100; max-height: 90%; }
+    CheckList OptionList { height: auto; max-height: 24; background: $im-dialog-bg; border: none; }
+    CheckList #hint { color: $im-dialog-fg 70%; }
     """
 
     BINDINGS = [*Dialog.BINDINGS, Binding("space", "toggle_current", show=False),
                 Binding("a", "add", show=False)]
+    VERB = "Add"
+    KEY = "A adds"
 
-    def __init__(self, title: str, proposals: list) -> None:
+    def __init__(self, title: str, items: list) -> None:
         super().__init__()
         self.title_text = title
-        self.proposals = proposals
-        self.checked = set(range(len(proposals)))
+        self.items = items
+        self.checked = set(range(len(items)))
+
+    def describe(self, item) -> Text:
+        return Text(str(item))
 
     def row(self, i: int) -> Text:
-        p = self.proposals[i]
         shown = Text("[x] " if i in self.checked else "[ ] ")
-        shown.append(f"{p.section}: ", style="bold")
-        shown.append(p.entry)
-        if p.note:
-            shown.append(f" (changes the bible: {p.note})", style="italic")
+        shown.append_text(self.describe(self.items[i]))
         return shown
 
     def compose(self):
         with Vertical(classes="im-dialog"):
             yield Label(self.title_text, classes="im-title")
-            yield OptionList(*[Option(self.row(i), id=str(i)) for i in range(len(self.proposals))])
-            yield Label("Space or Enter checks and unchecks. A adds the checked entries, Esc cancels.", id="hint")
+            yield OptionList(*[Option(self.row(i), id=str(i)) for i in range(len(self.items))])
+            yield Label(f"Space or Enter checks and unchecks. {self.KEY} the checked ones, Esc cancels.", id="hint")
             with Horizontal(classes="im-buttons"):
-                yield Button("Add checked", id="add", compact=True)
+                yield Button(f"{self.VERB} checked", id="add", compact=True)
                 yield Button("Cancel", id="cancel", compact=True)
 
     def on_mount(self) -> None:
@@ -383,6 +391,31 @@ class BibleReview(Dialog):
         self.dismiss(self.chosen())
 
 
+class BibleReview(CheckList):
+    """Suggested story bible entries."""
+
+    def describe(self, p) -> Text:
+        shown = Text(f"{p.section}: ", style="bold")
+        shown.append(p.entry)
+        if p.note:
+            shown.append(f" (changes the bible: {p.note})", style="italic")
+        return shown
+
+
+class EditReview(CheckList):
+    """Suggested edits, applied straight to the text."""
+
+    VERB = "Apply"
+    KEY = "A applies"
+
+    def describe(self, placed) -> Text:
+        edit = placed.edit
+        shown = Text(edit.label())
+        if edit.why:
+            shown.append(f" ({edit.why})", style="italic")
+        return shown
+
+
 def _strip_number(text: str) -> str:
     return re.sub(r"^\s*(?:\d+[.)]|#+\s*\d+[.)]?|Option\s+\d+:?)\s*", "", text).strip()
 
@@ -396,7 +429,8 @@ class Project:
 
 def register(api):
     app = api.app
-    state: dict = {"cancel": None, "conversation": [], "prompt": "", "context": "", "selection": None, "panel": None}
+    state: dict = {"cancel": None, "conversation": [], "prompt": "", "context": "", "selection": None, "panel": None,
+                   "continuation": False, "anchor": None}
 
     def table() -> dict:
         return api.settings
@@ -547,10 +581,11 @@ def register(api):
     # -- sending -----------------------------------------------------------------
 
     async def ask(prompt: str, title: str, *, context: str = "", can_replace: bool = False, choices: bool = False,
-                  max_tokens: int | None = None) -> None:
+                  continuation: bool = False, max_tokens: int | None = None) -> None:
         p = provider()
         if not await ready_to_send(p):
             return
+        state["continuation"] = continuation
         if state["cancel"] is not None:
             state["cancel"].set()
         if p.kind == "cli":
@@ -566,7 +601,7 @@ def register(api):
             state["conversation"] = [{"role": "user", "content": prompt}]
             state["context"] = "\n\n".join(part for part in (
                 f"# Story bible (facts the writer has settled; follow it)\n\n{bible}" if bible else "", context) if part)
-        await run(title, can_replace=can_replace, choices=choices, max_tokens=max_tokens)
+        await run(title, can_replace=can_replace, choices=choices, continuation=continuation, max_tokens=max_tokens)
 
     def live_exchange(title: str, request: str) -> conversation.Exchange:
         """The request being sent, as the reply panel shows it."""
@@ -576,12 +611,14 @@ def register(api):
         about = conversation.request_file(request) or (doc.path.name if doc is not None and doc.path is not None else "")
         return conversation.Exchange(title, conversation.clean_request(request, from_inkmill=True)[1], about=about)
 
-    async def run(title: str, *, can_replace: bool, choices: bool, max_tokens: int | None = None) -> None:
+    async def run(title: str, *, can_replace: bool, choices: bool, continuation: bool = False,
+                  max_tokens: int | None = None) -> None:
         p = provider()
         request = state["prompt"] if p.kind == "cli" else state["conversation"][-1]["content"]
         live = live_exchange(title, request)
         past = await history()
-        panel = ReplyPanel(plugin, can_replace=can_replace, choices=choices, history=past, live=live)
+        panel = ReplyPanel(plugin, can_replace=can_replace, choices=choices, continuation=continuation,
+                           history=past, live=live)
         state["panel"] = panel
         await api.show_panel(panel, panel.heading(), panel.hint())
         cancel = threading.Event()
@@ -615,6 +652,45 @@ def register(api):
         live.time = conversation.stamp()
         await record(live, p)
         panel.finish(text=reply)
+
+    async def send_once(prompt: str, title: str, waiting: str, readable=None) -> str | None:
+        """A request whose reply Inkmill reads itself rather than showing it.
+        It is part of the project's conversation like any other, and kept in
+        its history with the reply as ``readable`` renders it."""
+        p = provider()
+        if not await ready_to_send(p):
+            return None
+        state["continuation"] = False
+        app.status.flash(waiting, seconds=600)
+        try:
+            if p.kind == "cli":
+                proj = project()
+                if files_on():
+                    request = f"{header(proj)}\n\n{prompt}"
+                else:
+                    bible = bible_text(proj).strip()
+                    request = (f"{conversation.BIBLE}{bible}\n\n" if bible else "") + prompt
+                answer = await run_cli(request, lambda _t: None)
+                reply, tools = answer.text, answer.tools
+            else:
+                request = prompt
+                bible = bible_text(project()).strip()
+                context = f"# Story bible (facts the writer has settled; follow it)\n\n{bible}" if bible else ""
+                reply = await api.run_in_thread(
+                    client.stream, p, client.load_key(config_dir(), p), SYSTEM, [{"role": "user", "content": prompt}],
+                    lambda _t: None, context=context, max_tokens=int(table().get("max_tokens_long", 4096)))
+                tools = []
+        except client.AIError as exc:
+            app.status.clear_flash()
+            app.notify(f"{title} failed: {exc}", severity="error")
+            return None
+        app.status.clear_flash()
+        exchange = live_exchange(title, request)
+        exchange.reply = (readable(reply) if readable else None) or reply
+        exchange.looked_at = [conversation.looked_at(t) for t in tools]
+        exchange.time = conversation.stamp()
+        await record(exchange, p)
+        return reply
 
     async def record(exchange: conversation.Exchange, p: client.Provider) -> None:
         """Keep a finished turn: in the project's log, or for the providers
@@ -764,6 +840,32 @@ def register(api):
             state["selection"] = (doc_id, start, new_end, text)
             app.status.flash("Replaced the selection. Ctrl+Z undoes it.")
 
+        def insert_continuation(self, reply: str) -> None:
+            """Insert a continuation where the cursor was when it was asked
+            for, if the text before that spot is unchanged; otherwise at the
+            cursor."""
+            editor = app.active_editor
+            if editor is None or not reply.strip():
+                return
+            text = editor.text
+            anchor = state["anchor"]
+            at = None
+            if anchor is not None:
+                doc_id, index, check = anchor
+                if editor.doc.id == doc_id and index <= len(text) and text[index - len(check):index] == check:
+                    at = index
+            moved = at is None
+            if moved:
+                at = editor.index_of(editor.cursor_location)
+            piece = edits.join(text[:at], reply, text[at:])
+            editor.insert(piece, editor.location_of(at))
+            end = at + len(piece.rstrip())
+            editor.move_cursor(editor.location_of(end))
+            editor.focus()
+            state["anchor"] = (editor.doc.id, end, editor.text[max(0, end - ANCHOR_CHECK):end])
+            app.status.flash("Inserted the continuation" + (" at the cursor, since the text before the spot changed"
+                             if moved and anchor is not None else "") + ". Ctrl+Z undoes it.")
+
         def add_to_bible(self, text: str) -> None:
             if not text:
                 return
@@ -801,7 +903,8 @@ def register(api):
             return
         state["conversation"].append({"role": "user", "content": question})
         state["prompt"] = question
-        await run("Follow-up", can_replace=state["selection"] is not None, choices=False)
+        await run("Follow-up", can_replace=state["selection"] is not None, choices=False,
+                  continuation=state["continuation"])
 
     # -- what to send -----------------------------------------------------------
 
@@ -878,6 +981,86 @@ def register(api):
             return
         prompt = f"{REWRITE.format(how=how)}\n\n{sel[3]}"
         await ask(prompt, f"Rewrite ({how})", can_replace=True, choices=True)
+
+    @api.command("ai.continue", "Continue Writin&g", menu="ai", enabled=has_doc,
+                 description="New text that carries on from the cursor; I inserts it there")
+    async def continue_writing(app):
+        editor = app.active_editor
+        text = editor.text
+        at = editor.index_of(max(editor.selection.start, editor.selection.end))
+        limit = int(table().get("continue_context_chars", 6000))
+        before = text[max(0, at - limit):at]
+        if not text[:at].strip():
+            app.status.flash("Continue Writing carries on from the text before the cursor; there is none yet.")
+            return
+        after = text[at:at + 1500]
+        words = int(table().get("continue_words", 300))
+        prompt = f"{CONTINUE} Write about {words} words.\n\n{ENDS_HERE}{before}"
+        if after.strip():
+            prompt += f"\n\n{FOLLOWS}{after}"
+        state["selection"] = None
+        state["anchor"] = (editor.doc.id, at, text[max(0, at - ANCHOR_CHECK):at])
+        await ask(prompt, "Continue", continuation=True, max_tokens=int(table().get("max_tokens_long", 4096)))
+
+    @api.command("ai.suggest_edits", "Suggest &Edits...", menu="ai", enabled=has_doc,
+                 description="Edits to the selection or document, marked as tracked changes to accept or reject")
+    async def suggest_edits(app):
+        sel = selection()
+        how = await app.push_screen_wait(InputDialog(
+            "Suggest Edits", f"What should change in {'the selection' if sel else 'this document'}?",
+            str(table().get("suggest_edits", "fix spelling, grammar and clumsy phrasing"))))
+        if not how:
+            return
+        prompt = f"{edits.request(how)}\n\n{source(sel)}"
+        reply = await send_once(prompt, f"Suggest Edits ({how})", "Asking for suggested edits...",
+                                readable=lambda r: edits.to_markdown(found) if (found := edits.parse(r)) is not None else "")
+        if reply is None:
+            return
+        found = edits.parse(reply)
+        if found is None:
+            app.notify("The reply was not a list of edits; it is shown in the panel.", severity="warning", timeout=10)
+            panel = ReplyPanel(plugin, history=[conversation.Exchange("Suggest Edits", "", reply)])
+            state["panel"] = panel
+            await api.show_panel(panel, panel.heading(), panel.hint())
+            return
+        if not found:
+            app.status.flash("No edits suggested.")
+            return
+        editor = app.active_editor
+        if editor is None:
+            return
+        if sel is not None:
+            doc_id, start, end, original = sel
+            if editor.doc.id != doc_id or editor.document.get_text_range(start, end) != original:
+                app.notify("The selected text changed while the AI was working; the edits were not added.",
+                           severity="warning")
+                return
+            scope_start, scope = editor.index_of(start), original
+        else:
+            body = frontmatter.split(editor.text)[1]
+            scope_start, scope = len(editor.text) - len(body), body
+        placed, missed = edits.locate(scope, found)
+        skipped = f" {len(missed)} could not be matched to the text." if missed else ""
+        if not placed:
+            app.notify(f"None of the {len(found)} suggested edits matched the text.", severity="warning")
+            return
+        start_loc = editor.location_of(scope_start)
+        end_loc = editor.location_of(scope_start + len(scope))
+        if api.service("comments") is not None:
+            editor.replace(edits.marked(scope, placed), start_loc, end_loc)
+            if not (app.panel.visible and type(app.panel.content).__name__ == "ReviewList"):
+                app.run_command("comments.review")
+            app.status.flash(f"Marked {len(placed)} suggested edits. In Review, A accepts, R rejects; "
+                             f"Ctrl+Z removes them all.{skipped}", seconds=10)
+            return
+        picked = await app.push_screen_wait(EditReview(f"Apply suggested edits? ({len(placed)})", placed))
+        if not picked:
+            return
+        if editor.text[scope_start:scope_start + len(scope)] != scope:
+            app.notify("The text changed while the list was open; the edits were not applied.", severity="warning")
+            return
+        editor.replace(edits.applied(scope, [placed[i] for i in picked]), start_loc, end_loc)
+        app.status.flash(f"Applied {len(picked)} edits. Ctrl+Z undoes them.{skipped}", seconds=8)
 
     @api.command("ai.summarize", "Su&mmarize", menu="ai", enabled=has_doc)
     async def summarize(app):
