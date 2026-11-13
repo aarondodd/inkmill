@@ -5,7 +5,7 @@
     {
       "id": "ai",
       "name": "AI Assistant",
-      "version": "1.4.0",
+      "version": "1.4.1",
       "requires_inkmill": ">=0.3",
       "summary": "Opt-in help from Claude (through Claude Code on your Claude plan, or an API key), a local Ollama model or any OpenAI-compatible server: feedback, rewrites, continuations, suggested edits to accept or reject, synopses and a continuity check across a binder. The reply panel pages through earlier turns, kept in each project folder whichever provider answered.",
       "author": "Aaron Dodd",
@@ -27,13 +27,13 @@
       "path": "ai",
       "files": {
         "README.md": "c1d2c38483de86dccdd311f3d0fa986299e7eb2d881b588d15438d4bac2979cc",
-        "__init__.py": "e7c5d30490425a1fa28607e1ee273ed27a3cb4afb5d38f68fdff91b9c07abbfa",
+        "__init__.py": "9bf0a8b72c4c645f61a8cdfbf4d031549b3bc8da95c8aa52f44911c8a7351c8c",
         "bible.py": "28ab542f03b4ee75861acd333826939385bc58c847aef04c93ad03672d924dac",
         "claudecode.py": "8b029f50fd6ba7a46444afdff6aa505803299f5ee7dbc53786e1f14fae57c984",
         "client.py": "d3015312f9bdbb007041c44975ac43dc7b1c17673f19c096b31134c95a2868cd",
         "conversation.py": "ecf6277a734806067cf4127f19792470a29988f6a5784005d4ef8bb00c08e973",
         "edits.py": "011fcfe4cd31a20d67425f63c16b7e2299b172e77530bb18b5af873d618b6652",
-        "plugin.toml": "5dd8a7e99dcaa9a8665b5e711e61a472ec117368d0439a22c59d9f14ed572317"
+        "plugin.toml": "42eee811977d5546d9915eacb93e1f66377a820118cae8fd76df2ac0892ed531"
       }
     },
     {

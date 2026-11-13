@@ -861,10 +861,9 @@ def register(api):
             editor.insert(piece, editor.location_of(at))
             end = at + len(piece.rstrip())
             editor.move_cursor(editor.location_of(end))
-            editor.focus()
             state["anchor"] = (editor.doc.id, end, editor.text[max(0, end - ANCHOR_CHECK):end])
             app.status.flash("Inserted the continuation" + (" at the cursor, since the text before the spot changed"
-                             if moved and anchor is not None else "") + ". Ctrl+Z undoes it.")
+                             if moved and anchor is not None else "") + ". Esc returns to the text; Ctrl+Z undoes it.")
 
         def add_to_bible(self, text: str) -> None:
             if not text:

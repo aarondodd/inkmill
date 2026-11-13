@@ -367,6 +367,7 @@ their reasons; a continuation inserted at the end with a space join.
 - 0.5.4 (lasting conversation record, import flag, story bible update) merged by Aaron as PR #10.
 - 0.5.5 (document titles) merged by Aaron as PR #11.
 - 0.5.6 (Continue Writing, Suggest Edits) merged by Aaron as PR #12, which landed on `document-titles` because #11 had already merged; brought to main by a merge commit (4f831e6) at his request.
+- 0.5.7: Continue Writing's I moved focus to the editor, leaving the panel open with Esc opening the menu (Aaron hit it 2026-11-13); the panel now keeps focus.
 - Not yet exercised by a human on Windows Terminal or Termux. L-2026-07-19-001
   applies: verify there before calling it done.
 
