@@ -204,7 +204,8 @@ async def test_suggested_edits_without_track_changes_are_picked_from_a_list(tmp_
         app.run_command("ai.suggest_edits")
         assert await wait_for(pilot, lambda: type(app.screen).__name__ == "InputDialog")
         await pilot.press("enter")  # the default request
-        assert await wait_for(pilot, lambda: type(app.screen).__name__ == "EditReview", timeout=10)
+        assert await wait_for(pilot, lambda: type(app.screen).__name__ == "EditReview"
+                              and app.screen.query("OptionList"), timeout=10)
         review = app.screen
         assert review.chosen() == [0, 1]
         await pilot.press("down", "space")  # keep "big"
