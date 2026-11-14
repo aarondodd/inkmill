@@ -36,8 +36,14 @@ ContentSwitcher.
 - No binding on Ctrl+I/M/H (terminals send Tab/Enter/Backspace). Bold Ctrl+B,
   italic Ctrl+E, footnote Ctrl+F7 (WordPerfect's), go back Alt+B, tidy table
   Ctrl+\.
-- Termux preview: loopback HTTP server plus `termux-open-url`, since Android
-  browsers cannot read Termux private storage. WSL: `wslview`/`explorer.exe`.
+- Preview (F9, Binder Preview Manuscript): served by `PreviewServer`, a
+  loopback HTTP server over a random-named folder with listings off, and
+  opened by its http address: `termux-open-url` on Termux, `webbrowser`
+  elsewhere. Since 0.5.8 on desktops too, because a `file://` URL goes to the
+  `text/html` handler rather than the default web browser (Kubuntu maps it to
+  snap Firefox) and snap browsers have a private `/tmp`. WSL keeps
+  `wslview`/`explorer.exe` on the file, since WSL loopback reach from Windows
+  depends on the networking mode.
 - platformdirs with `appauthor=False` so Windows paths are
   `%LOCALAPPDATA%\inkmill`, not `inkmill\inkmill`.
 - Opening a file replaces a lone empty Untitled; File > New never does (a bug
@@ -367,7 +373,9 @@ their reasons; a continuation inserted at the end with a space join.
 - 0.5.4 (lasting conversation record, import flag, story bible update) merged by Aaron as PR #10.
 - 0.5.5 (document titles) merged by Aaron as PR #11.
 - 0.5.6 (Continue Writing, Suggest Edits) merged by Aaron as PR #12, which landed on `document-titles` because #11 had already merged; brought to main by a merge commit (4f831e6) at his request.
-- 0.5.7: Continue Writing's I moved focus to the editor, leaving the panel open with Esc opening the menu (Aaron hit it 2026-11-13); the panel now keeps focus.
+- 0.5.7: Continue Writing's I moved focus to the editor, leaving the panel open with Esc opening the menu (Aaron hit it 2026-11-13); the panel now keeps focus. Merged by Aaron as PR #13.
+- 0.5.8: preview over loopback HTTP on desktops (Aaron's laptop opened snap Firefox, not Edge, and Firefox could not read `/tmp`). Checked on the laptop: Edge fetched the page.
+- Before opening a stacked PR, or reporting a PR as awaiting review, check its state on GitHub (`gh pr view`), not from notes: #12 was opened on `document-titles` after #11 had merged, so its merge landed there and needed a second merge into main (2026-11-12).
 - Not yet exercised by a human on Windows Terminal or Termux. L-2026-07-19-001
   applies: verify there before calling it done.
 
