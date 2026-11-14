@@ -213,8 +213,14 @@ back.
 ## HTML export and preview
 
 File > Export HTML writes a standalone page with its style sheet embedded.
-F9 writes the same page to a temporary file and opens it in your default
-browser. There is no in-app preview by design.
+F9 renders the same page and opens it in your default web browser (the one
+your desktop uses for web links) through a loopback-only web server, at an
+address with a random part that only lasts while Inkmill runs. Serving it
+this way means the "default web browser" setting decides, rather than the app
+your desktop opens `.html` files with, and sandboxed browsers (snap, Flatpak)
+can show it even though they cannot read Inkmill's temporary folder. Under
+WSL the page opens with `wslview` or `explorer.exe` instead. There is no
+in-app preview by design.
 
 ![The classic style](docs/screenshots/export-classic.png)
 
