@@ -112,8 +112,8 @@ class InkmillApp(App):
         self.recovery = RecoveryStore(state_dir() / "recovery")
         self.find_request = FindRequest("next", "")
         self.initial_paths = [Path(p) for p in paths]
-        self.preview_dir = Path(tempfile.mkdtemp(prefix="inkmill-preview-"))
-        self.preview_server = PreviewServer(self.preview_dir)
+        self.preview_server = PreviewServer(Path(tempfile.mkdtemp(prefix="inkmill-preview-")))
+        self.preview_dir = self.preview_server.folder
         self._status_timer: Timer | None = None
         self._recovery_timer: Timer | None = None
 

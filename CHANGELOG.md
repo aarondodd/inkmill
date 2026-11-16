@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.5.8
+
+- Preview in Browser (F9) and Binder's Preview Manuscript now open in your
+  default web browser on every desktop. They used to open the page as a
+  local file, which goes to whatever app owns `.html` files; on Kubuntu
+  that is Firefox, whatever the default browser is set to. Firefox there is
+  a snap with its own private `/tmp`, so it also could not find the page.
+  The preview is now served from a loopback-only web server (as on Termux),
+  at an address with a random part, and opened by that address. WSL is
+  unchanged.
+- Side Reader (new plugin): Shift+F4 pins the document you are in, and F4
+  shows the pinned documents formatted and read-only in the side panel, so
+  notes or an earlier chapter stay in view while you write another. Left
+  and Right page through them, L lists the open documents, U unpins, E
+  edits the one shown and W widens the panel. Ctrl+T moves between the text
+  and the reader, as for any side panel.
+
 ## 0.5.7
 
 - After I inserted a Continue Writing reply, the AI panel stayed open with

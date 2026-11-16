@@ -1,19 +1,25 @@
 """Platform detection and "open in the default browser".
 
-Desktop platforms use :mod:`webbrowser` with a ``file://`` URL. Two cases need
-more care:
+Previews are served over a loopback HTTP server and opened by their
+``http://127.0.0.1`` address, for two reasons. A web address goes to the
+default web browser, while a local ``.html`` file goes to whatever app owns
+that file type, which can be a different browser (Kubuntu maps it to
+Firefox). And sandboxed browsers (snap, Flatpak, Android) cannot read files in
+Inkmill's temporary folder: a snap has its own private ``/tmp``, and Termux's
+storage is private to Termux.
 
-* Termux on Android. Browsers cannot read files inside Termux's private
-  storage, so Inkmill serves the preview over a loopback HTTP server and hands
-  the URL to ``termux-open-url`` (from the ``termux-tools`` package).
-* WSL. ``webbrowser`` usually finds no browser; ``wslview`` (wslu) or
-  ``explorer.exe`` open the Windows default browser instead.
+* Termux hands the address to ``termux-open-url`` (``termux-tools``).
+* WSL opens the file with ``wslview`` (wslu) or ``explorer.exe``, since whether
+  a Windows browser can reach WSL's loopback depends on its networking mode.
+* Elsewhere :mod:`webbrowser` opens the address, falling back to a
+  ``file://`` URL if the server cannot start.
 """
 
 from __future__ import annotations
 
 import functools
 import os
+import secrets
 import shutil
 import subprocess
 import sys
@@ -49,12 +55,23 @@ class _QuietHandler(SimpleHTTPRequestHandler):
     def log_message(self, format: str, *args: object) -> None:  # noqa: A002
         pass
 
+    def list_directory(self, path):  # noqa: ANN001
+        # No listings, so the random folder name cannot be discovered.
+        self.send_error(404)
+        return None
+
 
 class PreviewServer:
-    """A loopback-only static file server for one directory, started lazily."""
+    """A loopback-only static file server, started lazily.
+
+    Files go in :attr:`folder`, a randomly named folder under ``root``, so
+    another user on the machine cannot guess a preview's address.
+    """
 
     def __init__(self, root: Path) -> None:
         self.root = root
+        self.folder = root / secrets.token_urlsafe(16)
+        self.folder.mkdir(parents=True, exist_ok=True)
         self._server: ThreadingHTTPServer | None = None
 
     @property
@@ -115,6 +132,13 @@ def open_in_browser(path: Path, server: PreviewServer | None = None) -> str:
             win = subprocess.run([wslpath, "-w", str(path)], capture_output=True, text=True).stdout.strip()
             if win and _run_detached(["explorer.exe", win]):
                 return "explorer.exe"
+    elif server is not None:
+        try:
+            url = server.url_for(path)
+        except (OSError, ValueError):
+            url = None
+        if url and webbrowser.open(url):
+            return "webbrowser"
     if webbrowser.open(path.as_uri()):
         return "webbrowser"
     raise RuntimeError("no web browser could be found")

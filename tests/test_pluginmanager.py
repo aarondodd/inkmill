@@ -130,7 +130,7 @@ def test_every_repository_plugin_installs_from_a_local_clone(tmp_path):
     entries = fetch_index(source)
     assert {e.id for e in entries} == {
         "ai", "binder", "comments", "git_sync", "links", "outline", "pandoc", "progress", "prose",
-        "snapshots", "spelling", "templates", "themes",
+        "reader", "snapshots", "spelling", "templates", "themes",
     }
     dest = tmp_path / "plugins"
     for entry in entries:
