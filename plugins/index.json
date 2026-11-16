@@ -227,6 +227,21 @@
       }
     },
     {
+      "id": "reader",
+      "name": "Side Reader",
+      "version": "1.0.0",
+      "requires_inkmill": ">=0.5",
+      "summary": "Pin open documents beside your writing and read them formatted and read-only in the side panel.",
+      "author": "Aaron Dodd",
+      "license": "MIT",
+      "path": "reader",
+      "files": {
+        "README.md": "3cec6ce1aedba25e71d011aba117070edc800bd065ccaf27b9eb5d964e0345d4",
+        "__init__.py": "bf7a362deedd9f5d908e2dfca0efb2b2f28cca7d604d162b67bdc361223a74e1",
+        "plugin.toml": "e8489a44b61f81fa55e59cf15b09fd080b645d7e38fc3985120ee36253078fdc"
+      }
+    },
+    {
       "id": "snapshots",
       "name": "Snapshots",
       "version": "1.0.1",

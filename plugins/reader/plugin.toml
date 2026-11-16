@@ -1,0 +1,7 @@
+id = "reader"
+name = "Side Reader"
+version = "1.0.0"
+requires_inkmill = ">=0.5"
+summary = "Pin open documents beside your writing and read them formatted and read-only in the side panel."
+author = "Aaron Dodd"
+license = "MIT"

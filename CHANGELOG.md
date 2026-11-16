@@ -10,6 +10,12 @@
   The preview is now served from a loopback-only web server (as on Termux),
   at an address with a random part, and opened by that address. WSL is
   unchanged.
+- Side Reader (new plugin): Shift+F4 pins the document you are in, and F4
+  shows the pinned documents formatted and read-only in the side panel, so
+  notes or an earlier chapter stay in view while you write another. Left
+  and Right page through them, L lists the open documents, U unpins, E
+  edits the one shown and W widens the panel. Ctrl+T moves between the text
+  and the reader, as for any side panel.
 
 ## 0.5.7
 

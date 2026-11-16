@@ -325,6 +325,7 @@ you trust.
 | [Spelling & Thesaurus](plugins/spelling/README.md) | Spell check one word at a time (Ctrl+F2), unknown words underlined as you write, and synonyms for the word under the cursor (Alt+F1). Offline US English dictionary plus your own lists. |
 | [Prose Check](plugins/prose/README.md) | Passive voice, adverbs, filler, wordy phrases, cliches, repeated words and long sentences, with readability numbers, in the side panel. Adds Vale's findings if you use Vale. |
 | [Outline](plugins/outline/README.md) | The document's headings in the side panel (F8): jump, move whole sections, promote and demote. |
+| [Side Reader](plugins/reader/README.md) | Pin open documents (Shift+F4) and read them formatted and read-only in the side panel (F4) while you write another; page through them, list them, jump to one. |
 | [Binder](plugins/binder/README.md) | Long work as separate documents: a binder holds the chapter order, chapters link to it, research sits beside it. Alt+F5 lists everything; Binder Outline shows status, words and synopsis per chapter; the whole binder exports as one manuscript. |
 | [Links](plugins/links/README.md) | `[[Wikilinks]]` between notes, Follow Link (Alt+L) for any link under the cursor, Link Back, and backlinks. |
 | [Comments & Track Changes](plugins/comments/README.md) | Comments and suggested insertions, deletions and replacements as CriticMarkup, with a review list to accept or reject them. |
@@ -343,7 +344,7 @@ until you do.
 
 ### The side panel
 
-Outline, Prose Check, Review Changes, Backlinks and the AI Assistant show
+Outline, Side Reader, Prose Check, Review Changes, Backlinks and the AI Assistant show
 their results in a panel on the right, which stays closed until you ask for
 one. Ctrl+T moves between the text and the panel, and Esc in the panel
 closes it. On a screen narrower than 90 columns the panel takes the whole
